@@ -8,16 +8,16 @@ Loose collection of functions and some basic infrastructure for working with the
 
 ## Installation
 
-Requires Julia `v0.6-`, and some extra packages:
+Requires Julia `v0.6-`.
 
 ## Usage
 
 Needs the environment variable `AMDB_FILES`. Either
 ```shell
-export AMDB_FILES = path/to/files
+export AMDB_FILES=path/to/files
 ```
 in your shell, or
 ```julia
-ENV["AMDB_FILES"] = path/to/files
+ENV["AMDB_FILES"] = "path/to/files"
 ```
 in your `~/.juliarc.jl`.
