@@ -4,17 +4,20 @@
 
 using AMDB_IHS
 using JLD
+using DocStringExtensions
 
 """
-Normalized values in a dictionary, returned in the order provided by
-`keys`. Missing keys are treated as `0`.
+    $(SIGNATURES)
+
+Normalized values in a dictionary, returned in the order provided by `keys`. Missing keys are treated as `0`.
 """
 function normalized_ordered(dict, keys)
     total = sum(values(dict))
     [get(dict, key, 0)/total for key in keys]
 end
 
-status_counts = load(joinpath(amdb_files_directory(), "status_counts.jld"))["status_counts"]
+status_counts = load(joinpath(amdb_files_directory(),
+                              "status_counts.jld"))["status_counts"]
 
 # sum all years
 total = Dict{String, Int64}()

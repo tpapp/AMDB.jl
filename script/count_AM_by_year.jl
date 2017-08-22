@@ -4,9 +4,22 @@
 ######################################################################
 
 using AMDB_IHS
-using Libz
+using TranscodingStreams
+using CodecZlib
 using JLD
+using DocStringExtensions
 
+"""
+    $(SIGNATURES)
+
+Read lines from `io`, split them on `delim`, and call `f` on the resulting vector of strings.
+
+`limit` is passed to `split`, and sets the maximum number of fields.
+
+Output a `.` every `progress` lines when the latter is positive.
+
+When `maxlines` > 0, stop after that many lines.
+"""
 function dofields(f, io;
                   progress = 1000000, limit = 0, delim = ';', maxlines = 0)
     line = 0
@@ -22,10 +35,17 @@ function dofields(f, io;
     end
 end
 
+"""
+    $(SIGNATURES)
+
+Open `filename`, and count the unique strings in column `col_index`.
+
+`options` are passed to `dofields` as keyword parameters.
+"""
 function count_field(filename, col_index; options...)
     io = open(filename, "r")
     c = Dict{String,Int}()
-    dofields(ZlibInflateInputStream(io);
+    dofields(GzipDecompressionStream(io);
              limit = col_index + 1, delim = ';', options...) do fields
                  kind = fields[col_index]
                  c[kind] = get(c, kind, 0) + 1
@@ -34,13 +54,24 @@ function count_field(filename, col_index; options...)
     c
 end
 
-status_counts = Dict{Int,Any}()
-colnames = amdb_colnames()
+"""
+    $(SIGNATURES)
 
-for year in 2000:2014
-    println("processing year $(year)")
-    status_counts[year] = count_field(amdb_data_file(year), findfirst(colnames, "AM"))
-    println("DONE")
+Count all unique occurrences of strings in the given column `colname` for each year. Return a dictionary with elements `year => counts`, where counts is a `string => count` pair.
+"""
+function count_field_by_year(colname)
+    counts = Dict{Int,Dict{String,Int}}()
+    colnames = amdb_colnames()
+    colindex = findfirst(colnames, colname)
+    @assert colindex > 0 "column $(colname) not found"
+    for year in amdb_all_years()
+        println("processing $(year)")
+        counts[year] = count_field(amdb_data_file(year), colindex)
+    end
+    counts
 end
 
-save(joinpath(amdb_files_directory(), "status_counts.jld"), "status_counts", status_counts)
+status_counts = count_field_by_year("AM")
+
+save(joinpath(amdb_files_directory(), "status_counts.jld"), "status_counts",
+     status_counts)

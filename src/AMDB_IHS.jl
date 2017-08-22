@@ -1,13 +1,16 @@
 module AMDB_IHS
 
+using DocStringExtensions
+
 export
     amdb_files_directory,
     amdb_data_path,
     amdb_data_file,
+    amdb_all_years,
     amdb_colnames
 
 """
-    amdb_files_directory()
+    $(SIGNATURES)
 
 Return the directoy for the AMDB data dump.
 
@@ -43,6 +46,8 @@ function amdb_data_file(year)
     yearnum = year ≤ 2014 ? @sprintf("%02d", year-2000) : "1516"
     amdb_data_path("mon_ew_xt_uni_bus_$(yearnum).csv.gz")
 end
+
+amdb_all_years() = 2000:2014 # 2015,2016 omitted, as they share a file
 
 """
     amdb_colnames()
