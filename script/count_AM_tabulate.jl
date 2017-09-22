@@ -2,7 +2,7 @@
 # tabulate the results of count_AM_by_year.jl, save it as a CSV file
 ######################################################################
 
-using AMDB_IHS
+using AMDB
 using JLD
 using DocStringExtensions
 
@@ -16,7 +16,7 @@ function normalized_ordered(dict, keys)
     [get(dict, key, 0)/total for key in keys]
 end
 
-status_counts = load(joinpath(amdb_files_directory(),
+status_counts = load(joinpath(AMDB.files_directory(),
                               "status_counts.jld"))["status_counts"]
 
 # sum all years
@@ -37,4 +37,4 @@ table = vcat(hcat("","TOTAL",string.(years)...),
                   [normalized_ordered(status_counts[year], ordered_keys)
                    for year in years]...))
 
-writedlm(joinpath(amdb_files_directory(), "status_counts.csv"), table, ',')
+writedlm(joinpath(AMDB.files_directory(), "status_counts.csv"), table, ',')

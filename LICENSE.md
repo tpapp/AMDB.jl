@@ -1,4 +1,4 @@
-The AMDB_IHS.jl package is licensed under the MIT "Expat" License:
+The AMDB.jl package is licensed under the MIT "Expat" License:
 
 > Copyright (c) 2017: Tamas K. Papp.
 > 

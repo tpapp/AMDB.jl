@@ -3,7 +3,7 @@
 # results at the end, processed by another file (count_AM_tabulate.jl)
 ######################################################################
 
-using AMDB_IHS
+using AMDB
 using TranscodingStreams
 using CodecZlib
 using JLD
@@ -61,17 +61,17 @@ Count all unique occurrences of strings in the given column `colname` for each y
 """
 function count_field_by_year(colname)
     counts = Dict{Int,Dict{String,Int}}()
-    colnames = amdb_colnames()
+    colnames = AMDB.colnames()
     colindex = findfirst(colnames, colname)
     @assert colindex > 0 "column $(colname) not found"
-    for year in amdb_all_years()
+    for year in AMDB.all_years()
         println("processing $(year)")
-        counts[year] = count_field(amdb_data_file(year), colindex)
+        counts[year] = count_field(AMDB.data_file(year), colindex)
     end
     counts
 end
 
 status_counts = count_field_by_year("AM")
 
-save(joinpath(amdb_files_directory(), "status_counts.jld"), "status_counts",
+save(joinpath(AMDB.files_directory(), "status_counts.jld"), "status_counts",
      status_counts)
