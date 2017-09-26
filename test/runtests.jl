@@ -6,7 +6,10 @@ import AMDB:
     tryparse_base10_fixed,
     tryparse_date,
     tryparse_skip,
-    tryparse_gobble
+    tryparse_gobble,
+    parsefield,
+    SkipField,
+    AccumulateField
 
 ≅ = isequal
 
@@ -41,12 +44,29 @@ end
 end
 
 @testset "parsing dates" begin
-    @test tryparse_date(b"19800101;", 1) ≅ Nullable(Date(1980, 1, 1))
-    @test tryparse_date(b"19800000;", 1) ≅ Nullable(Date(1980, 1, 1))
-    @test tryparse_date(b"19809901;", 1) ≅ Nullable{Date}()
+    @test tryparse_date(b"19800101;", 1) ≅ (Nullable(Date(1980, 1, 1)), 9)
+    @test tryparse_date(b"19800000;", 1) ≅ (Nullable(Date(1980, 1, 1)), 9)
+    @test tryparse_date(b"19809901;", 1) ≅ (Nullable{Date}(), 9)
 end
 
 @testset "parsing or skipping strings" begin
     @test tryparse_skip(b"12;1234;", 4) ≅ 8
     @test tryparse_gobble(b"12;1234;", 4) ≅ (b"1234", 8)
+end
+
+@testset "field parsers" begin
+    @test parsefield(SkipField(), b"1980;", 1) == (true, 5)
+    @test parsefield(SkipField(), b"1980;1990;", 6) == (true, 10)
+    acc = AccumulateField(Int64)
+    @test parsefield(acc, b"1980;", 1) == (true, 5)
+    @test parsefield(acc, b"1980;1990;", 6) == (true, 10)
+    @test_throws ErrorException parsefield(acc, b"1980;1990", 6) # EOL
+    @test parsefield(acc, b";", 1)[1] == false
+    @test sort(collect(values(acc))) == [1980, 1990]
+    acc = AccumulateField(Date)
+    @test parsefield(acc, b"19800101;", 1) == (true, 9)
+    @test parsefield(acc, b"19800101;19900202;", 10) == (true, 18)
+    @test_throws ErrorException parsefield(acc, b"19800101", 1) # EOL
+    @test_throws ErrorException parsefield(acc, b";", 1)[1] == false
+    @test sort(collect(values(acc))) == [Date(1980, 1, 1), Date(1990, 2, 2)]
 end
