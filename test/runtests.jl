@@ -3,14 +3,15 @@ using Base.Test
 
 import AMDB:
     EMPTY, EOL, INVALID,
+    ByteVector,
     parse_base10_tosep,
     parse_base10_fixed,
     parse_date,
     parse_skip,
     parse_gobble,
     accumulate_field,
-    SkipField,
-    AccumulateField
+    accumulate_line,
+    SKIPFIELD
 
 # made-up, not from the real dataset
 const sampleline = b"9997;19800101;19900101;0;0;AA;BB;"
@@ -53,19 +54,34 @@ end
     @test parse_gobble(b"12;1234;", 4) == (b"1234", 8)
 end
 
-@testset "field parsers" begin
-    @test accumulate_field(SkipField(), b"1980;", 1) == 5
-    @test accumulate_field(SkipField(), b"1980;1990;", 6) == 10
-    acc = AccumulateField(Int64)
-    @test accumulate_field(acc, b"1980;", 1) == 5
-    @test accumulate_field(acc, b"1980;1990;", 6) == 10
-    @test accumulate_field(acc, b"1980;1990", 6) == EOL
-    @test accumulate_field(acc, b";", 1) == EMPTY
-    @test sort(collect(values(acc))) == [1980, 1990]
-    acc = AccumulateField(Date)
-    @test accumulate_field(acc, b"19800101;", 1) == 9
-    @test accumulate_field(acc, b"19800101;19900202;", 10) == 18
-    @test accumulate_field(acc, b"19800101", 1) == EOL
-    @test accumulate_field(acc, b";", 1) == EOL
-    @test sort(collect(values(acc))) == [Date(1980, 1, 1), Date(1990, 2, 2)]
+@testset "field accumulation" begin
+    @test accumulate_field(b"1980;", 1, SKIPFIELD) == 5
+    @test accumulate_field(b"1980;1990;", 6, SKIPFIELD) == 10
+    acc = Set{Int64}()
+    @test accumulate_field(b"1980;", 1, acc) == 5
+    @test accumulate_field(b"1980;1990;", 6, acc) == 10
+    @test accumulate_field(b"1980;1990", 6, acc) == EOL
+    @test accumulate_field(b";", 1, acc) == EMPTY
+    @test sort(collect(acc)) == [1980, 1990]
+    acc = Set{Date}()
+    @test accumulate_field(b"19800101;", 1, acc) == 9
+    @test accumulate_field(b"19800101;19900202;", 10, acc) == 18
+    @test accumulate_field(b"19800101", 1, acc) == EOL
+    @test accumulate_field(b";", 1, acc) == EOL
+    @test sort(collect(acc)) == [Date(1980, 1, 1), Date(1990, 2, 2)]
+end
+
+@testset "line accumulation" begin
+    ids = Set{Int}()
+    dates = Set{Date}()
+    str1 = Set{ByteVector}()
+    str2 = Set{ByteVector}()
+    accumulators = (ids, dates, dates, SKIPFIELD, SKIPFIELD, str1, str2)
+    accumulate_line(b"9997;19800101;19900101;0;0;CC;BB;", accumulators)
+    accumulate_line(b"1212;19600101;20000505;0;0;AA;DD;", accumulators)
+    @test sort(collect(ids)) == [1212, 9997]
+    @test sort(collect(dates)) ==
+        Date.(["1960-01-01", "1980-01-01", "1990-01-01", "2000-05-05"])
+    @test sort(collect(str1), lt=lexless) == [b"AA", b"CC"]
+    @test sort(collect(str2), lt=lexless) == [b"BB", b"DD"]
 end

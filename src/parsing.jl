@@ -22,6 +22,8 @@ propagated.
 """
 validpos(pos) = pos > 0
 
+const ByteVector = Vector{UInt8}
+
 """
     d, pos = tryparse_base10_tosep(str, start, [len])
 
@@ -30,7 +32,7 @@ Parse digits from `str` as an integer, until encountering `sep` or EOL.
 Return the parsed integer and the position of the separator (or an error code,
 see `validpos`).
 """
-function parse_base10_tosep(str::Vector{UInt8}, start, len = length(str))
+function parse_base10_tosep(str::ByteVector, start, len = length(str))
     n = 0
     z = UInt8('0')
     pos = start
@@ -55,7 +57,7 @@ Parse digits from `str` between positions `start` and `stop` (inclusive) as an
 integer. `pos` is the position after parsing, it is either `stop + 1` or an
 error code.
 """
-function parse_base10_fixed(str::Vector{UInt8}, start, stop)
+function parse_base10_fixed(str::ByteVector, start, stop)
     n = 0
     z = UInt8('0')
     pos = start
@@ -77,7 +79,7 @@ end
 Parse dates of the form "yyyymmdd". When the month or the day is zero, they are
 replaced by 1 (a peculiarity of the dataset).
 """
-function parse_date(str::Vector{UInt8}, start)
+function parse_date(str::ByteVector, start)
     stop = start+8
     length(str) ≥ stop || return Date(0), EOL
 
@@ -99,7 +101,7 @@ function parse_date(str::Vector{UInt8}, start)
     Date(y, m, d), pos
 end
 
-function parse_skip(str::Vector{UInt8}, start, len = length(str))
+function parse_skip(str::ByteVector, start, len = length(str))
     pos = start
     @inbounds while pos ≤ len
         str[pos] == SEP && return pos
@@ -108,58 +110,56 @@ function parse_skip(str::Vector{UInt8}, start, len = length(str))
     EOL
 end
 
-function parse_gobble(str::Vector{UInt8}, start, len = length(str))
+function parse_gobble(str::ByteVector, start, len = length(str))
     pos = parse_skip(str, start, len)
     @view(str[start:(pos-1)]), pos
 end
 
 """
-    accumulate_field(
+    sep_pos = accumulate_field(str, pos, accumulator)
+
+Parse the field starting at `str[pos]` and process by `accumulator` as specified
+by the latter. Return the position of the separator (also used for error
+messages).
 """
 function accumulate_field end
 
 struct SkipField end
 
-accumulate_field(::SkipField, str, start) = parse_skip(str, start)
+const SKIPFIELD = SkipField()
 
-struct AccumulateField{T}
-    values::Set{T}
-end
+accumulate_field(str, pos, ::SkipField) = parse_skip(str, pos)
 
-AccumulateField(T) = AccumulateField(Set{T}())
-
-Base.values(acc::AccumulateField) = acc.values
-
-function accumulate_field(acc::AccumulateField{Int}, str, start)
-    value, pos = parse_base10_tosep(str, start)
-    validpos(pos) && push!(acc.values, value)
+function accumulate_field(str, pos, acc::Set{Int})
+    value, pos = parse_base10_tosep(str, pos)
+    validpos(pos) && push!(acc, value)
     pos
 end
 
-function accumulate_field(acc::AccumulateField{Vector{UInt8}}, str, start)
-    value, pos = parse_gobble(str, start)
-    validpos(pos) && push!(acc.values, value)
+function accumulate_field(str, pos, acc::Set{ByteVector})
+    value, pos = parse_gobble(str, pos)
+    validpos(pos) && push!(acc, value)
     pos
 end
 
-function accumulate_field(acc::AccumulateField{Date}, str, pos)
+function accumulate_field(str, pos, acc::Set{Date})
     value, pos = parse_date(str, pos)
-    validpos(pos) && push!(acc.values, value)
+    validpos(pos) && push!(acc, value)
     pos
 end
 
 accumulate_line_(str, pos) = nothing
 
-accumulate_line_(str, pos, fieldparser) = accumulate_field(fieldparser, str, pos)
+accumulate_line_(str, pos, field_accumulator) =
+    accumulate_field(str, pos, field_accumulator)
 
 function accumulate_line_(str, pos, fieldparser, fieldparsers...)
-    status, pos = accumulate_field(fieldparser, str, pos)
+    pos = accumulate_field(str, pos, fieldparser)
     if validpos(pos)
-        accumulate_line_(str, pos, fieldparsers...)
+        accumulate_line_(str, pos + 1, fieldparsers...)
     else
-        # report error
+        error("FIXME replace with error reporting code")
     end
 end
-
 
 accumulate_line(str, fieldparsers) = accumulate_line_(str, 1, fieldparsers...)
