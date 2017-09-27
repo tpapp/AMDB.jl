@@ -115,6 +115,11 @@ function parse_gobble(str::ByteVector, start, len = length(str))
     @view(str[start:(pos-1)]), pos
 end
 
+
+######################################################################
+# accumulators
+######################################################################
+
 """
     sep_pos = accumulate_field(str, pos, accumulator)
 
@@ -148,18 +153,15 @@ function accumulate_field(str, pos, acc::Set{Date})
     pos
 end
 
-accumulate_line_(str, pos) = nothing
+accumulate_line_(str, pos, fieldindex) = (0, 0)
 
-accumulate_line_(str, pos, field_accumulator) =
-    accumulate_field(str, pos, field_accumulator)
-
-function accumulate_line_(str, pos, fieldparser, fieldparsers...)
-    pos = accumulate_field(str, pos, fieldparser)
-    if validpos(pos)
-        accumulate_line_(str, pos + 1, fieldparsers...)
+function accumulate_line_(str, pos, fieldindex, accumulator, accumulators...)
+    next_pos = accumulate_field(str, pos, accumulator)
+    if validpos(next_pos)
+        accumulate_line_(str, next_pos + 1, fieldindex + 1, accumulators...)
     else
-        error("FIXME replace with error reporting code")
+        pos, fieldindex
     end
 end
 
-accumulate_line(str, fieldparsers) = accumulate_line_(str, 1, fieldparsers...)
+accumulate_line(str, accumulators) = accumulate_line_(str, 1, 1, accumulators...)

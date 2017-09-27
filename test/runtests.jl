@@ -77,11 +77,13 @@ end
     str1 = Set{ByteVector}()
     str2 = Set{ByteVector}()
     accumulators = (ids, dates, dates, SKIPFIELD, SKIPFIELD, str1, str2)
-    accumulate_line(b"9997;19800101;19900101;0;0;CC;BB;", accumulators)
-    accumulate_line(b"1212;19600101;20000505;0;0;AA;DD;", accumulators)
+    @test accumulate_line(b"9997;19800101;19900101;0;0;CC;BB;", accumulators) == (0, 0)
+    @test accumulate_line(b"1212;19600101;20000505;0;0;AA;DD;", accumulators) == (0, 0)
     @test sort(collect(ids)) == [1212, 9997]
     @test sort(collect(dates)) ==
         Date.(["1960-01-01", "1980-01-01", "1990-01-01", "2000-05-05"])
     @test sort(collect(str1), lt=lexless) == [b"AA", b"CC"]
     @test sort(collect(str2), lt=lexless) == [b"BB", b"DD"]
+    @test accumulate_line(b"MALFORMED;", accumulators) == (1, 1)
+    @test accumulate_line(b"11;MALFORMED;", accumulators) == (4, 2)
 end
