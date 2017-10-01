@@ -170,6 +170,12 @@ function accumulate_field(str, pos, acc::Accumulator{ByteVector,<:Integer})
     pos
 end
 
+function accumulate_field(str, pos, acc::Accumulator{Int,<:Integer})
+    value, pos = parse_base10_tosep(str, pos)
+    validpos(pos) && push!(acc, value)
+    pos
+end
+
 accumulate_line_(str, pos::Int, fieldindex::Int) = (0, 0)
 
 function accumulate_line_(str, pos, fieldindex, accumulator, accumulators...)
