@@ -74,12 +74,13 @@ function parse_base10_fixed(str::ByteVector, start, stop)
 end
 
 """
-    d, pos = parse_date(str, start)
+    d, pos = parse_date(str, start, strict = true)
 
-Parse dates of the form "yyyymmdd". When the month or the day is zero, they are
-replaced by 1 (a peculiarity of the dataset).
+Parse dates of the form "yyyymmdd".
+
+When `strict = false`, zero days are replaced by 1 (a peculiarity of the dataset).
 """
-function parse_date(str::ByteVector, start)
+function parse_date(str::ByteVector, start, strict = true)
     stop = start+8
     length(str) ≥ stop || return Date(0), EOL
 
@@ -92,13 +93,16 @@ function parse_date(str::ByteVector, start)
     d, pos = parse_base10_fixed(str, pos, pos+1)
     validpos(pos) || return Date(0), pos
 
-    str[pos] == SEP || return Date(0), INVALID
+    str[pos] == SEP || @goto invalid
 
-    m = max(m, 1)
-    d = max(d, 1)
-    (m ≤ 12 && d ≤ Base.Dates.daysinmonth(y, m)) || return Date(0), INVALID
+    d == 0 && (strict ? @goto(invalid) : (d = 1))
 
-    Date(y, m, d), pos
+    (m ≤ 12 && d ≤ Base.Dates.daysinmonth(y, m)) || @goto invalid
+
+    return Date(y, m, d), pos
+
+    @label invalid
+    Date(0), INVALID
 end
 
 function parse_skip(str::ByteVector, start, len = length(str))

@@ -45,7 +45,8 @@ end
 
 @testset "parsing dates" begin
     @test parse_date(b"xx;19800101;", 4) == (Date(1980, 1, 1), 12)
-    @test parse_date(b"xx;19800000;", 4) == (Date(1980, 1, 1), 12)
+    @test parse_date(b"xx;19800100;", 4, false) == (Date(1980, 1, 1), 12)
+    @test parse_date(b"xx;19800100;", 4, true)[2] == INVALID
     @test parse_date(b"xx;19809901;", 4)[2] == INVALID
 end
 
