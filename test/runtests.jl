@@ -14,9 +14,6 @@ import AMDB:
     accumulate_line,
     FileError, FileErrors, log_error
 
-# made-up, not from the real dataset
-const sampleline = b"9997;19800101;19900101;0;0;AA;BB;"
-
 # write your own tests here
 @testset "paths" begin
     mktempdir() do dir
