@@ -2,6 +2,7 @@ using CodecZlib
 using WallTimeProgress
 using EnglishText
 using Parameters
+using DataStructures
 
 ######################################################################
 # parsing primitives
@@ -160,6 +161,12 @@ end
 function accumulate_field(str, pos, acc::Set{Date})
     value, pos = parse_date(str, pos)
     validpos(pos) && value ∉ acc && push!(acc, value)
+    pos
+end
+
+function accumulate_field(str, pos, acc::Accumulator{ByteVector,<:Integer})
+    value, pos = parse_gobble(str, pos)
+    validpos(pos) && push!(acc, value)
     pos
 end
 

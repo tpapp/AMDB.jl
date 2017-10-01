@@ -1,5 +1,6 @@
 using AMDB
 using Base.Test
+using DataStructures
 
 import AMDB:
     EMPTY, EOL, INVALID,
@@ -68,6 +69,11 @@ end
     @test accumulate_field(b"19800101", 1, acc) == EOL
     @test accumulate_field(b";", 1, acc) == EOL
     @test sort(collect(acc)) == [Date(1980, 1, 1), Date(1990, 2, 2)]
+    acc = counter(ByteVector)
+    @test accumulate_field(b"foo;", 1, acc) == 4
+    @test accumulate_field(b"bar;foo;", 5, acc) == 8
+    @test collect(keys(acc)) == [b"foo"]
+    @test collect(values(acc)) == [2]
 end
 
 @testset "line accumulation" begin
