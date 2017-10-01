@@ -141,23 +141,24 @@ accumulate_field(str, pos, ::SkipField) = parse_skip(str, pos)
 
 function accumulate_field(str, pos, acc::Set{Int})
     value, pos = parse_base10_tosep(str, pos)
-    validpos(pos) && push!(acc, value)
+    # NOTE checking that `value ∉ acc` before push! is much better for performance
+    validpos(pos) && value ∉ acc && push!(acc, value)
     pos
 end
 
 function accumulate_field(str, pos, acc::Set{ByteVector})
     value, pos = parse_gobble(str, pos)
-    validpos(pos) && push!(acc, value)
+    validpos(pos) && value ∉ acc && push!(acc, value)
     pos
 end
 
 function accumulate_field(str, pos, acc::Set{Date})
     value, pos = parse_date(str, pos)
-    validpos(pos) && push!(acc, value)
+    validpos(pos) && value ∉ acc && push!(acc, value)
     pos
 end
 
-accumulate_line_(str, pos, fieldindex) = (0, 0)
+accumulate_line_(str, pos::Int, fieldindex::Int) = (0, 0)
 
 function accumulate_line_(str, pos, fieldindex, accumulator, accumulators...)
     next_pos = accumulate_field(str, pos, accumulator)
