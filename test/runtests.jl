@@ -10,8 +10,9 @@ import AMDB:
     parse_skip,
     parse_gobble,
     accumulate_field,
+    SKIPFIELD,
     accumulate_line,
-    SKIPFIELD
+    FileError, FileErrors, log_error
 
 # made-up, not from the real dataset
 const sampleline = b"9997;19800101;19900101;0;0;AA;BB;"
@@ -87,4 +88,13 @@ end
     @test sort(collect(str2), lt=lexless) == [b"BB", b"DD"]
     @test accumulate_line(b"MALFORMED;", accumulators) == (1, 1)
     @test accumulate_line(b"11;MALFORMED;", accumulators) == (4, 2)
+end
+
+@testset "error logging and printing" begin
+    fe = FileErrors("foo.gz")
+    @test repr(fe) == "foo.gz: 0 errors\n"
+    @test count(fe) == 0
+    log_error(fe, 99, b"bad;bad line", 5, 2)
+    @test count(fe) == 1
+    @test repr(fe) == "foo.gz: 1 error\nbad;bad line\n    ^ line 99, field 2, byte 5\n"
 end

@@ -1,3 +1,8 @@
+using CodecZlib
+using WallTimeProgress
+using EnglishText
+using Parameters
+
 ######################################################################
 # parsing primitives
 ######################################################################
@@ -170,3 +175,67 @@ function accumulate_line_(str, pos, fieldindex, accumulator, accumulators...)
 end
 
 accumulate_line(str, accumulators) = accumulate_line_(str, 1, 1, accumulators...)
+
+######################################################################
+# error logging
+######################################################################
+
+struct FileError
+    line_number::Int
+    line_content::ByteVector
+    line_position::Int
+    field_index::Int
+end
+
+function Base.show(io::IO, file_error::FileError)
+    @unpack line_number, line_content, line_position, field_index = file_error
+    println(io, String(line_content))
+    print(io, " "^(line_position - 1))
+    println(io, "^ line $(line_number), field $(field_index), byte $(line_position)")
+end
+
+struct FileErrors{S}
+    filename::S
+    errors::Vector{FileError}
+end
+
+FileErrors(filename::String) = FileErrors(filename, Vector{FileError}(0))
+
+function log_error(file_errors::FileErrors, line_number, line_content,
+                   line_position, field_index)
+    push!(file_errors.errors,
+          FileError(line_number, line_content, line_position, field_index))
+end
+
+function Base.show(io::IO, file_errors::FileErrors)
+    @unpack filename, errors = file_errors
+    error_quantity = ItemQuantity(length(errors), "error")
+    println(io, "$filename: $(error_quantity)")
+    for e in errors
+        show(io, e)
+    end
+end
+
+Base.count(file_errors::FileErrors) = length(file_errors.errors)
+
+######################################################################
+# read whole file
+######################################################################
+
+function accumulate_stream(io::IO, errors::FileErrors, accumulators;
+                           tracker_period = 10_000_000, max_lines = -1)
+    tracker = WallTimeTracker(tracker_period; item_name = "line")
+    while !eof(io) && (max_lines < 0 || count(tracker) < max_lines)
+        line_content = readuntil(io, 0x0a)
+        pos, ix = accumulate_line(line_content, accumulators)
+        pos == 0 || log_error(errors, count(tracker), line_content, pos, ix)
+        increment!(tracker)
+    end
+end
+
+function accumulate_file(filename, accumulators; args...)
+    io = GzipDecompressionStream(open(filename))
+    errors = FileErrors(filename)
+    accumulate_stream(io, errors, accumulators; args...)
+    errors
+end
