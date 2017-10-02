@@ -13,7 +13,9 @@ import AMDB:
     accumulate_field,
     SKIPFIELD,
     accumulate_line,
-    FileError, FileErrors, log_error
+    FileError, FileErrors, log_error,
+    cumsum2range,
+    CumSumWrapper
 
 # write your own tests here
 @testset "paths" begin
@@ -100,4 +102,23 @@ end
     log_error(fe, 99, b"bad;bad line", 5, 2)
     @test count(fe) == 1
     @test repr(fe) == "foo.gz: 1 error\nbad;bad line\n    ^ line 99, field 2, byte 5\n"
+end
+
+@testset "cumsum index calculations" begin
+    a = Int32[4, 3, 7]
+    ca = cumsum(a)
+    @test cumsum2range(ca, 1) ≡ UnitRange{Int32}(1,4)
+    @test cumsum2range(ca, 2) ≡ UnitRange{Int32}(5,7)
+    @test cumsum2range(ca, 3) ≡ UnitRange{Int32}(8:14)
+    @test_throws BoundsError cumsum2range(ca, 0)
+    @test_throws BoundsError cumsum2range(ca, 4)
+    cwr = CumSumWrapper(ca)
+    @test cwr[1] ≡ UnitRange{Int32}(1,4)
+    @test cwr[2] ≡ UnitRange{Int32}(5,7)
+    @test cwr[3] ≡ UnitRange{Int32}(8:14)
+    @test_throws BoundsError cwr[0]
+    @test_throws BoundsError cwr[4]
+    @test length(cwr) == 3
+    @test size(cwr) == (3,)
+    @test eltype(cwr) == UnitRange{Int32}
 end
