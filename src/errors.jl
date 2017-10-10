@@ -9,14 +9,13 @@ struct FileError
     line_number::Int
     line_content::Vector{UInt8}
     line_position::Int
-    field_index::Int
 end
 
 function Base.show(io::IO, file_error::FileError)
-    @unpack line_number, line_content, line_position, field_index = file_error
+    @unpack line_number, line_content, line_position = file_error
     println(io, String(line_content))
     print(io, " "^(line_position - 1))
-    println(io, "^ line $(line_number), field $(field_index), byte $(line_position)")
+    println(io, "^ line $(line_number), byte $(line_position)")
 end
 
 struct FileErrors{S}
@@ -27,9 +26,9 @@ end
 FileErrors(filename::String) = FileErrors(filename, Vector{FileError}(0))
 
 function log_error(file_errors::FileErrors, line_number, line_content,
-                   line_position, field_index)
+                   line_position)
     push!(file_errors.errors,
-          FileError(line_number, line_content, line_position, field_index))
+          FileError(line_number, line_content, line_position))
 end
 
 function Base.show(io::IO, file_errors::FileErrors)

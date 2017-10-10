@@ -28,9 +28,9 @@ end
     fe = FileErrors("foo.gz")
     @test repr(fe) == "foo.gz: 0 errors\n"
     @test count(fe) == 0
-    log_error(fe, 99, b"bad;bad line", 5, 2)
+    log_error(fe, 99, b"bad;bad line", 5)
     @test count(fe) == 1
-    @test repr(fe) == "foo.gz: 1 error\nbad;bad line\n    ^ line 99, field 2, byte 5\n"
+    @test repr(fe) == "foo.gz: 1 error\nbad;bad line\n    ^ line 99, byte 5\n"
 end
 
 @testset "cumsum index calculations" begin
