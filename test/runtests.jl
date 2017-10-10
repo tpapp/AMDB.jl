@@ -5,6 +5,8 @@ using DataStructures
 import AMDB:
     # errors
     FileError, FileErrors, log_error,
+    # utilities
+    narrowest_Int, to_narrowest_Int,
     # mmap handling
     cumsum2range, CumSumWrapper
 
@@ -31,6 +33,14 @@ end
     log_error(fe, 99, b"bad;bad line", 5)
     @test count(fe) == 1
     @test repr(fe) == "foo.gz: 1 error\nbad;bad line\n    ^ line 99, byte 5\n"
+end
+
+@testset "integer narrowing" begin
+    ≖(x, y) = false             # also compare types
+    ≖(x::Vector{T}, y::Vector{T}) where {T} = isequal(x, y)
+    @test to_narrowest_Int([1,2,3]) ≖ Int8[1, 2, 3]
+    @test to_narrowest_Int([-129,2,3]) ≖ Int16[-129, 2, 3]
+    @test to_narrowest_Int([99, 32768]) ≖ Int32[99, 32768]
 end
 
 @testset "cumsum index calculations" begin
