@@ -5,6 +5,8 @@ using DataStructures
 import AMDB:
     # errors
     FileError, FileErrors, log_error,
+    # autoindexing
+    AutoIndex,
     # utilities
     narrowest_Int, to_narrowest_Int,
     # mmap handling
@@ -33,6 +35,20 @@ end
     log_error(fe, 99, b"bad;bad line", 5)
     @test count(fe) == 1
     @test repr(fe) == "foo.gz: 1 error\nbad;bad line\n    ^ line 99, byte 5\n"
+end
+
+@testset "auto indexing" begin
+    aa = b"aa"
+    bb = b"bb"
+    ai = AutoIndex{Vector{UInt8},Int}()
+    @test ai[@view(aa[1:2])] == 1
+    @test ai[bb] == 2
+    @test ai[aa] == 1
+    @test ai[bb] == 2
+    @test ai[b"cc"] == 3
+    @test ai[@view aa[:]] == 1
+    @test length(ai) == 3
+    @test keys(ai) == [b"aa", b"bb", b"cc"]
 end
 
 @testset "integer narrowing" begin
