@@ -1,6 +1,5 @@
 using AMDB
 using Base.Test
-using DataStructures
 
 import AMDB:
     # errors
