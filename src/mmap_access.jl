@@ -41,3 +41,20 @@ function mmapped_arrays(base_filename, N, mode = "r")
      mmapped_("spell_stop", Date),
      mmapped_("spell_raw_type", Date))
 end
+
+
+"""
+    
+"""
+function cumsum2counter(cumsums::Vector{T}) where T
+    counters = similar(cumsums)
+    counters[1] = 1
+    for i in 2:length(cumsums)
+        counters[i] = cumsums[i-1] + one(T)
+    end
+    counters
+end
+
+function parse_and_place_AM_spells(io, errors, counters)
+    
+end
