@@ -12,7 +12,9 @@ function Base.getindex(ai::AutoIndex{T,S}, elt::E) where {T,S,E}
     @unpack dict = ai
     ix = get(dict, elt, zero(S))
     if ix == zero(S)
-        v = length(dict) + one(S)
+        v = length(dict)
+        @assert v < typemax(S) "Number of elements reached typemax($S)"
+        v += one(S)
         dict[T==E ? elt : convert(T, elt)] = v
         v
     else
