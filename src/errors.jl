@@ -13,7 +13,7 @@ end
 
 function Base.show(io::IO, file_error::FileError)
     @unpack line_number, line_content, line_position = file_error
-    println(io, String(line_content))
+    println(io, chomp(String(line_content)))
     print(io, " "^(line_position - 1))
     println(io, "^ line $(line_number), byte $(line_position)")
 end
