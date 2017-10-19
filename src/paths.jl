@@ -1,3 +1,7 @@
+export
+    data_file, data_path, all_data_files, data_colnames,
+    serialize_data, deserialize_data
+
 """
     $(SIGNATURES)
 
@@ -53,4 +57,23 @@ Return the AMDB column names for the data dump as a vector.
 function data_colnames()
     header = readlines(data_path("mon_ew_xt_uni_bus.cols.txt"))[1]
     split(header, ';')
+end
+
+"""
+    $(SIGNATURES)
+
+Serialize data into `filename` within the data directory. A new file is created,
+existing files are overwritten.
+"""
+function serialize_data(filename, value)
+    open(io -> serialize(io, value), data_path(filename), "w")
+end
+
+"""
+    $(SIGNATURES)
+
+Deserialize data from `filename` within the data directory.
+"""
+function deserialize_data(filename)
+    open(deserialize, data_path(filename), "r")
 end
