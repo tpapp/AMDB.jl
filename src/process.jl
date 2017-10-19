@@ -21,7 +21,7 @@ function process_stream(io::IO, parser, f, errors::FileErrors;
 end
 
 function process_file(filename, parser, f; args...)
-    io = GzipDecompressionStream(open(filename))
+    io = GzipDecompressorStream(open(filename))
     errors = FileErrors(filename)
     process_stream(io, parser, f, errors; args...)
     errors
