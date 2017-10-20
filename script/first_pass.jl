@@ -1,10 +1,10 @@
 using AMDB
 using ByteParsers
+using IntervalSets
 using JLD
 using RaggedData
 
 import AMDB:
-    data_file, all_data_files, data_path, # data paths
     process_file,                         # file processing with parser
     AutoIndex,
     first_pass_streams,
@@ -24,8 +24,7 @@ mutable struct FirstPass{Tid, TAM, TAM_ix, TIO}
     AMs::AutoIndex{TAM, TAM_ix} # labor market spells ("Arbeitsmarkt")
     stream_id::TIO
     stream_AM_ix::TIO
-    stream_date_start::TIO
-    stream_date_stop::TIO
+    stream_dates::TIO
 end
 
 # convenience constructor
@@ -36,7 +35,7 @@ function FirstPass(parser::Line, base_filename)
 end
 
 # dumping dates to files
-Base.write(io::IO, date::Date) = unsafe_write(io, Ref(date), sizeof(Date))
+# Base.write(io::IO, date::Date) = unsafe_write(io, Ref(date), sizeof(Date))
 
 function Base.write(io::IO, x::T) where T
     @assert isbits(T) "Can only write bits types."
@@ -50,15 +49,13 @@ function (fp::FirstPass{Tid, TAM, TAM_ix, TIO})(record) where {Tid,TAM,TAM_ix,TI
     # save into streams
     write(fp.stream_id, id)
     write(fp.stream_AM_ix, TAM_ix(fp.AMs[AM])) # autoindexing new values
-    write(fp.stream_date_start, date_start)
-    write(fp.stream_date_stop, date_stop)
+    write(fp.stream_dates, AMDB_Date(date_start)..AMDB_Date(date_stop)) # compact dates
 end
 
 function Base.close(fp::FirstPass)
     close(fp.stream_id)
     close(fp.stream_AM_ix)
-    close(fp.stream_date_start)
-    close(fp.stream_date_stop)
+    close(fp.stream_dates)
 end
 
 parser_id_am = Line(PositiveInteger(Int64),
@@ -76,11 +73,14 @@ end
 close(error_io)
 close(fp)
 
-save(data_path("first_pass_meta.jld"),
-     "id_counter", fp.id_counter,
-     "AM_keys", keys(fp.AMs))
+# save the id counter
+@time serialize_data("first_pass_id_counter.jls", fp.id_counter) # 88 s
 
-## run this for testing
-fp_meta = load(data_path("first_pass_meta.jld"))
-@assert isequal(fp.id_counter.dict, fp_meta["id_counter"].dict)
-@assert isequal(fp_meta["AM_keys"], keys(fp.AMs))
+# save the keys
+save(data_path("data_meta.jld"),
+     "AM_keys", map(String, keys(fp.AMs)),
+     "total_count", count(fp.id_counter))
+
+## run this ONLY for testing serialization
+id_counter2 = deserialize_data("first_pass_id_counter.jls")
+@assert isequal(id_counter2, fp.id_counter)
