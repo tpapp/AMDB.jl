@@ -4,7 +4,7 @@ meta_records_file(base_filename) = data_path(base, "_meta.jld")
 
 function first_pass_filenames(base_filename)
     fn(part) = data_path("$(base_filename)_$(part).bin")
-    fn("id"), fn("AM_ix"), fn("date_start"), fn("date_stop")
+    fn("id"), fn("AM_ix"), fn("dates")
 end
 
 function first_pass_streams(base_filename, mode)
