@@ -19,7 +19,7 @@ end
 # end
 
 
-function mmapped_vector(filename, T::Type, len::Int, mode = "r+")
+function mmapped_vector(filename, T::Type, len::Integer, mode = "r+")
     stream = open(data_path(filename), mode)
     Mmap.mmap(stream, Vector{T}, (len,))
 end
