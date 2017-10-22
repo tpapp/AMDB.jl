@@ -1,6 +1,6 @@
 using AMDB
 import AMDB: mmapped_vector
-using IntervalSets
+using DiscreteRanges
 using JLD
 using RaggedData
 using WallTimeProgress
@@ -18,11 +18,13 @@ serialize_data("collated_ix.jls", ix)
 # first pass: read
 fp_id = mmapped_vector("first_pass_id.bin", Int32, N, "r");
 fp_AM_ix = mmapped_vector("first_pass_AM_ix.bin", Int8, N, "r");
-fp_dates = mmapped_vector("first_pass_dates.bin", ClosedInterval{AMDB_Date}, N, "r");
+fp_dates = mmapped_vector("first_pass_dates.bin",
+                          DiscreteRange{AMDB_Date}, N, "r");
 
 # second pass: write
 coll_AM_ix = mmapped_vector("collated_AM_ix.bin", Int8, N, "w+");
-coll_dates = mmapped_vector("collated_date_start.bin", ClosedInterval{AMDB_Date}, N, "w+");
+coll_dates = mmapped_vector("collated_date_start.bin",
+                            DiscreteRange{AMDB_Date}, N, "w+");
 
 function collate_first_pass(coll, fp_id,
                             fp_AM_ix, fp_dates, coll_AM_ix, coll_dates,
