@@ -23,7 +23,7 @@ fp_dates = mmapped_vector("first_pass_dates.bin",
 
 # second pass: write
 coll_AM_ix = mmapped_vector("collated_AM_ix.bin", Int8, N, "w+");
-coll_dates = mmapped_vector("collated_date_start.bin",
+coll_dates = mmapped_vector("collated_dates.bin",
                             DiscreteRange{AMDB_Date}, N, "w+");
 
 function collate_first_pass(coll, fp_id,
