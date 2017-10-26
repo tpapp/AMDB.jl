@@ -8,8 +8,14 @@ Loose collection of functions and some basic infrastructure for working with the
 
 ## Installation
 
-Requires Julia `v0.6`.
-
+Requires Julia `v0.6`. Some dependencies are unregistered, so install as
+```julia
+Pkg.clone("https://github.com/tpapp/RaggedData.jl.git")
+Pkg.clone("https://github.com/tpapp/ByteParsers.jl.git")
+Pkg.clone("https://github.com/tpapp/DiscreteRanges.jl.git")
+Pkg.clone("https://github.com/tpapp/LargeColumns.jl.git")
+Pkg.clone("https://github.com/tpapp/AMDB.jl.git")
+```
 ## Usage
 
 Needs the environment variable `AMDB_FILES`. Either
@@ -21,3 +27,5 @@ in your shell, or
 ENV["AMDB_FILES"] = "path/to/files"
 ```
 in your `~/.juliarc.jl`.
+
+See the `scripts/` directory.

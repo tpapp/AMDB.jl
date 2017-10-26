@@ -1,8 +1,13 @@
 julia 0.6
 TranscodingStreams
 CodecZlib
-JLD
+JLD2
 DocStringExtensions
 Parameters
 EnglishText
 DataStructures
+ByteParsers
+DiscreteRanges
+FileIO
+LargeColumns
+RaggedData
