@@ -34,6 +34,7 @@ end
 function (fp::FirstPass{Tid, TAM, TAM_ix, TIO})(record) where {Tid,TAM,TAM_ix,TIO}
     id_wide, date_start, date_stop, AM = record
     id = Tid(id_wide)           # conversion to (possibly) narrower type
+    push!(fp.id_counter, id)
     push!(fp.sink,
           (id, TAM_ix(fp.AMs[AM]), AMDB_Date(date_start)..AMDB_Date(date_stop)))
 end
