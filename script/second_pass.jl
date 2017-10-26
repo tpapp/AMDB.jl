@@ -1,59 +1,52 @@
+######################################################################
+# second pass: collate dataset by individual IDs, forming contiguous records
+######################################################################
+
 using AMDB
-import AMDB: mmapped_vector
 using DiscreteRanges
-using JLD
+using JLD2
+using FileIO
 using RaggedData
+using LargeColumns
 using WallTimeProgress
 import Base.Mmap: sync!
 
-id_counter = deserialize_data("first_pass_id_counter.jls")
-N = count(id_counter)           # total number of observations
+first_pass = MmappedColumns(data_path("first_pass"));
 
-coll, ix, id = collate_index_keys(id_counter, true)
+N = length(first_pass)
 
-# write out indexer (`ix`) and ids (`id`)
-serialize_data("collated_id.jls", id)
-serialize_data("collated_ix.jls", ix)
+collated = MmappedColumns(data_path("collated"), N,
+                          Tuple{Int8, DiscreteRange{AMDB_Date}});
 
-# first pass: read
-fp_id = mmapped_vector("first_pass_id.bin", Int32, N, "r");
-fp_AM_ix = mmapped_vector("first_pass_AM_ix.bin", Int8, N, "r");
-fp_dates = mmapped_vector("first_pass_dates.bin",
-                          DiscreteRange{AMDB_Date}, N, "r");
+# load metadata
+meta = load(meta_path(first_pass, "meta.jld2"))
+id_counter = meta["id_counter"]
 
-# second pass: write
-coll_AM_ix = mmapped_vector("collated_AM_ix.bin", Int8, N, "w+");
-coll_dates = mmapped_vector("collated_dates.bin",
-                            DiscreteRange{AMDB_Date}, N, "w+");
+coll, ix, id = collate_index_keys(id_counter, true);
 
-function collate_first_pass(coll, fp_id,
-                            fp_AM_ix, fp_dates, coll_AM_ix, coll_dates,
-                            N = length(fp_id))
+# collate by IDs
+
+function collate_first_pass!(coll, first_pass, collated)
     tracker = WallTimeTracker(10_000_000; item_name = "record")
-    @inbounds for i in 1:N
-        j = next_index!(coll, fp_id[i])
-        coll_AM_ix[j] = fp_AM_ix[i]
-        coll_dates[j] = fp_dates[i]
+    @assert length(first_pass) == length(collated)
+    @inbounds for i in indices(first_pass, 1)
+        id, AM_ix, dates = first_pass[i]
+        j = next_index!(coll, id)
+        collated[j] = (AM_ix, dates)
         increment!(tracker)
     end
 end
 
-collate_first_pass(coll, fp_id, fp_AM_ix, fp_dates, coll_AM_ix, coll_dates)
+collate_first_pass!(coll, first_pass, collated)
 
-# order by dates
+sync!(collated)
 
-function order_date_start(ix, coll_AM_ix, coll_dates)
-    tracker = WallTimeTracker(10_000_000; item_name = "record")
-    @inbounds for i in indices(ix, 1)
-        jx = ix[i]
-        p = sortperm(coll_dates[jx], by = x->x.left)
-        coll_AM_ix[jx] .= coll_AM_ix[jx][p]
-        coll_dates[jx] .= coll_dates[jx][p]
-        increment!(tracker)
-    end
-end
+# save metadata
 
-order_date_start(ix, coll_AM_ix, coll_dates)
+save(meta_path(collated, "meta.jld2"),
+     "ix", ix,
+     "AM_keys", meta["AM_keys"])
+
 
 sync!(coll_AM_ix)
 sync!(coll_dates)
