@@ -1,7 +1,8 @@
 using AMDB
 using ByteParsers
 using DiscreteRanges
-using JLD
+using JLD2
+using FileIO
 using LargeColumns
 using RaggedData
 
@@ -59,6 +60,6 @@ close(error_io)
 close(fp)
 
 # save the keys
-save(meta_path(dir),
+save(meta_path(dir, "meta.jld2"),
      "AM_keys", map(String, keys(fp.AMs)),
      "id_counter", fp.id_counter)
