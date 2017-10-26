@@ -1,4 +1,10 @@
 ######################################################################
+# NOTE THIS IS NOT OBSOLETE AND NEEDS TO BE REWRITTEN
+######################################################################
+
+error("THIS IS NOT OBSOLETE AND NEEDS TO BE REWRITTEN")
+
+######################################################################
 # count the AM column status for AMDB by year. large runtime, save
 # results at the end, processed by another file (count_AM_tabulate.jl)
 ######################################################################

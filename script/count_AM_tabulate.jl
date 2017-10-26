@@ -1,4 +1,10 @@
 ######################################################################
+# NOTE THIS IS NOT OBSOLETE AND NEEDS TO BE REWRITTEN
+######################################################################
+
+error("THIS IS NOT OBSOLETE AND NEEDS TO BE REWRITTEN")
+
+######################################################################
 # tabulate the results of count_AM_by_year.jl, save it as a CSV file
 ######################################################################
 
