@@ -1,3 +1,8 @@
+######################################################################
+# first pass: read whole file, save in binary format, count IDs for
+# collation, store AM spell strings in the order of appearance
+######################################################################
+
 using AMDB
 using ByteParsers
 using DiscreteRanges
@@ -9,10 +14,6 @@ using RaggedData
 import AMDB:
     process_file,                         # file processing with parser
     AutoIndex
-
-######################################################################
-# read whole file -- first pass
-######################################################################
 
 # if this part breaks, then column names changed, *rewrite*
 cols = AMDB.data_colnames()
