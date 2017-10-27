@@ -46,7 +46,3 @@ sync!(collated)
 save(meta_path(collated, "meta.jld2"),
      "ix", ix,
      "AM_keys", meta["AM_keys"])
-
-
-sync!(coll_AM_ix)
-sync!(coll_dates)
