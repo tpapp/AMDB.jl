@@ -8,6 +8,5 @@ include("autoindex.jl")
 include("dates.jl")
 include("process.jl")
 include("utilities.jl")
-include("mmap_access.jl")
 
 end # module
