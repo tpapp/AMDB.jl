@@ -305,4 +305,37 @@ function column_parsers(colnames::AbstractVector,
     tuple(parsers...)
 end
 
+"""
+    $SIGNATURES
+
+Return a sample of `N` values from column `colname` as a vector.
+
+Optional arguments specity the file, how many lines to skip in between, etc. The
+purpose of this function is to get a quick sense of what the values look like.
+"""
+function preview_column(colname;
+                        N = 20,
+                        skiplines = 10000,
+                        year = 2000,
+                        filename = AMDB.data_file(year),
+                        colnames = AMDB.data_colnames(),
+                        separator = ';')
+    ix = findfirst(colnames, colname)
+    ix > 0 || throw(error("column $colname not found"))
+    info("$colname is in column $ix")
+    io_gz = open(filename, "r")
+    io = GzipDecompressorStream(io_gz)
+    values = map(1:N) do _
+        for _ in 1:skiplines
+            readline(io)
+        end
+        line = readline(io)
+        split(line, separator)[ix]
+    end
+    close(io)
+    close(io_gz)
+    values
+end
+
+
 end # module
