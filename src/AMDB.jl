@@ -176,6 +176,28 @@ function Base.keys(ai::AutoIndex)
 end
 
 
+# map using a tuple of functions
+
+"""
+    TupleMap(functions::Tuple)
+
+Return a callable that maps a tuple of the same dimension using `functions`,
+which should be a tuple of callables (do not need to be `<: Function`).
+
+```julia
+struct AddOne end
+(::AddOne)(x) = x + one(x)
+f = TupleMap((AddOne(), identity))
+f((1,3))                        # (2,3)
+```
+"""
+struct TupleMap{T <: Tuple}
+    functions::T
+end
+
+(f::TupleMap)(x::Tuple) = map((g, z) -> g(z), f.functions, x)
+
+
 # dates
 
 """

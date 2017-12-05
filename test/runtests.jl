@@ -8,7 +8,7 @@ using AMDB:
     # autoindexing
     AutoIndex,
     # utilities
-    narrowest_Int, to_narrowest_Int, column_parsers
+    narrowest_Int, to_narrowest_Int, column_parsers, TupleMap
 
 # write your own tests here
 @testset "paths" begin
@@ -53,6 +53,14 @@ end
     @test length(ai) == 127
     # check that we cannot add an element above capacity
     @test_throws AssertionError ai(b"this will not fit")
+end
+
+struct AddOne end
+
+@testset "tuple map" begin
+    (::AddOne)(x) = x + one(x)
+    f = TupleMap((AddOne(), identity))
+    @test @inferred(f((1,3))) == (2,3)
 end
 
 @testset "integer narrowing" begin
