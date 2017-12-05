@@ -284,9 +284,9 @@ julia> column_parsers(["a", "b", "c", "d", "e"],
 (Skip(), DateYYYYMMDD(), Skip(), PositiveInteger())
 ```
 """
-function column_parsers(colnames::AbstractVector{T},
-                        colnames_and_parsers::AbstractVector{Pair{T,S}},
-                        skip_parser = Skip()) where {T,S}
+function column_parsers(colnames::AbstractVector,
+                        colnames_and_parsers::AbstractVector{<: Pair},
+                        skip_parser = Skip())
     @argcheck allunique(colnames) "Column names are not unique."
     indexes_and_parsers = map(colnames_and_parsers) do colname_and_parser
         colname, parser = colname_and_parser
