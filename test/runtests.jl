@@ -8,8 +8,6 @@ import AMDB:
     AutoIndex,
     # utilities
     narrowest_Int, to_narrowest_Int,
-    # mmap handling
-    cumsum2range, CumSumWrapper
 
 # write your own tests here
 @testset "paths" begin
@@ -60,23 +58,4 @@ end
     @test to_narrowest_Int([1,2,3]) ≖ Int8[1, 2, 3]
     @test to_narrowest_Int([-129,2,3]) ≖ Int16[-129, 2, 3]
     @test to_narrowest_Int([99, 32768]) ≖ Int32[99, 32768]
-end
-
-@testset "cumsum index calculations" begin
-    a = Int32[4, 3, 7]
-    ca = cumsum(a)
-    @test cumsum2range(ca, 1) ≡ UnitRange{Int32}(1,4)
-    @test cumsum2range(ca, 2) ≡ UnitRange{Int32}(5,7)
-    @test cumsum2range(ca, 3) ≡ UnitRange{Int32}(8:14)
-    @test_throws BoundsError cumsum2range(ca, 0)
-    @test_throws BoundsError cumsum2range(ca, 4)
-    cwr = CumSumWrapper(ca)
-    @test cwr[1] ≡ UnitRange{Int32}(1,4)
-    @test cwr[2] ≡ UnitRange{Int32}(5,7)
-    @test cwr[3] ≡ UnitRange{Int32}(8:14)
-    @test_throws BoundsError cwr[0]
-    @test_throws BoundsError cwr[4]
-    @test length(cwr) == 3
-    @test size(cwr) == (3,)
-    @test eltype(cwr) == UnitRange{Int32}
 end
