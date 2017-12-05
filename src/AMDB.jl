@@ -1,7 +1,7 @@
 module AMDB
 
 using ArgCheck: @argcheck
-using ByteParsers: parsenext, isparsed
+using ByteParsers: parsenext, isparsed, Skip
 using CodecZlib: GzipDecompressorStream
 using DocStringExtensions: SIGNATURES
 using EnglishText: ItemQuantity
@@ -262,6 +262,47 @@ Convert `xs` to the narrowest integer type that will contain it (a subtype of
 function to_narrowest_Int(xs::AbstractVector{<: Integer}, signed = true)
     T = narrowest_Int(extrema(xs)..., signed)
     T.(xs)
+end
+
+
+# column selection
+
+"""
+    $SIGNATURES
+
+Find the column matching a given column name, and return a tuple of parsers
+constructed using `colnames_and_parsers`, which should be a vector of
+parsers. The order of parsers is preserved, and should be
+increasing. `skip_parser` is used to skip fields.
+
+Example:
+
+```julia
+julia> column_parsers(["a", "b", "c", "d", "e"],
+                      ["b" => DateYYYYMMDD(), "d" => PositiveInteger()])
+
+(Skip(), DateYYYYMMDD(), Skip(), PositiveInteger())
+```
+"""
+function column_parsers(colnames::AbstractVector{T},
+                        colnames_and_parsers::AbstractVector{Pair{T,S}},
+                        skip_parser = Skip()) where {T,S}
+    @argcheck allunique(colnames) "Column names are not unique."
+    indexes_and_parsers = map(colnames_and_parsers) do colname_and_parser
+        colname, parser = colname_and_parser
+        index = findfirst(colnames, colname)
+        index > 0 || throw(ArgumentError("column $(colname) not found"))
+        index => parser
+    end
+    # make sure column indexes are strictly increasing (no repetition, right order)
+    issorted(indexes_and_parsers, lt = <, by = first) ||
+        throw(ArgumentError("column names are not in the right order"))
+    # the default is to skip
+    parsers = fill!(Vector(first(indexes_and_parsers[end])), skip_parser)
+    for (index, parser) in indexes_and_parsers
+        parsers[index] = parser
+    end
+    tuple(parsers...)
 end
 
 end # module

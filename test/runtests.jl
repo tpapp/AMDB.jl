@@ -1,13 +1,14 @@
-using AMDB
 using Base.Test
 
-import AMDB:
+using ByteParsers: Skip
+
+using AMDB:
     # errors
     FileError, FileErrors, log_error,
     # autoindexing
     AutoIndex,
     # utilities
-    narrowest_Int, to_narrowest_Int,
+    narrowest_Int, to_narrowest_Int, column_parsers
 
 # write your own tests here
 @testset "paths" begin
@@ -58,4 +59,9 @@ end
     @test to_narrowest_Int([1,2,3]) ≖ Int8[1, 2, 3]
     @test to_narrowest_Int([-129,2,3]) ≖ Int16[-129, 2, 3]
     @test to_narrowest_Int([99, 32768]) ≖ Int32[99, 32768]
+end
+
+@testset "column parsers" begin
+    c = column_parsers(["a", "b", "c", "d", "e"], ["b" => :b, "d" => :d])
+    @test c == (Skip(), :b, Skip(), :d)
 end
