@@ -136,7 +136,7 @@ end
 Base.count(file_errors::FileErrors) = length(file_errors.errors)
 
 
-# automatic indecation
+# automatic indexation
 
 struct AutoIndex{T, S <: Integer}
     dict::Dict{T, S}
@@ -146,8 +146,8 @@ end
     $SIGNATURES
 
 Create an `AutoIndex` of object which supports automatic indexation of keys with
-type `T` to integers (`<: S`) via `getindex`: when the key is not found, a new
-one is assigned automatically, starting from `1`.
+type `T` to integers (`<: S`). The mapping is implemented by making the object
+callable.
 
 `keys` retrieves all the keys in the order of appearance.
 """
@@ -155,7 +155,7 @@ AutoIndex{T,S}() where {T,S} = AutoIndex(Dict{T,S}())
 
 Base.length(ai::AutoIndex) = length(ai.dict)
 
-function Base.getindex(ai::AutoIndex{T,S}, elt::E) where {T,S,E}
+function (ai::AutoIndex{T,S})(elt::E) where {T,S,E}
     @unpack dict = ai
     ix = get(dict, elt, zero(S))
     if ix == zero(S)

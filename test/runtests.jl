@@ -39,18 +39,20 @@ end
     aa = b"aa"
     bb = b"bb"
     ai = AutoIndex{Vector{UInt8},Int8}()
-    @test ai[@view(aa[1:2])] == 1
-    @test ai[bb] == 2
-    @test ai[aa] == 1
-    @test ai[bb] == 2
-    @test ai[b"cc"] == 3
-    @test ai[@view aa[:]] == 1
+    @test ai(@view(aa[1:2])) == 1
+    @test ai(bb) == 2
+    @test ai(aa) == 1
+    @test ai(bb) == 2
+    @test ai(b"cc") == 3
+    @test ai(@view aa[:]) == 1
     @test length(ai) == 3
     @test keys(ai) == [b"aa", b"bb", b"cc"]
     for i in 4:typemax(Int8)
-        @test ai[UInt8[1,i]] == i
+        @test ai(UInt8[1,i]) == i
     end
-    @test_throws AssertionError ai[b"this will not fit"]
+    @test length(ai) == 127
+    # check that we cannot add an element above capacity
+    @test_throws AssertionError ai(b"this will not fit")
 end
 
 @testset "integer narrowing" begin
