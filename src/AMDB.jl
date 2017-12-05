@@ -2,8 +2,9 @@ module AMDB
 
 using ArgCheck: @argcheck
 using ByteParsers: parsenext, isparsed
+using CodecZlib: GzipDecompressorStream
 using DocStringExtensions: SIGNATURES
-using EnglishText
+using EnglishText: ItemQuantity
 using FlexDates: FlexDate
 # FIXME commented out selective import until
 # https://github.com/mauro3/Parameters.jl/issues/43 is fidex
@@ -14,10 +15,6 @@ export
     data_file, data_path, all_data_files, data_colnames,
     serialize_data, deserialize_data,
     AMDB_Date
-
-using CodecZlib
-
-
 
 
 # paths
@@ -139,12 +136,21 @@ end
 Base.count(file_errors::FileErrors) = length(file_errors.errors)
 
 
+# automatic indecation
 
-
-struct AutoIndex{T,S}
-    dict::Dict{T,S}
+struct AutoIndex{T, S <: Integer}
+    dict::Dict{T, S}
 end
 
+"""
+    $SIGNATURES
+
+Create an `AutoIndex` of object which supports automatic indexation of keys with
+type `T` to integers (`<: S`) via `getindex`: when the key is not found, a new
+one is assigned automatically, starting from `1`.
+
+`keys` retrieves all the keys in the order of appearance.
+"""
 AutoIndex{T,S}() where {T,S} = AutoIndex(Dict{T,S}())
 
 Base.length(ai::AutoIndex) = length(ai.dict)
@@ -172,23 +178,40 @@ end
 
 # dates
 
+"""
+Epoch for consistent date compression in the database.
+"""
 const EPOCH = Date(2000,1,1)    # all dates relative to this
 
+"""
+Datatype used for compressed dates.
+"""
 const AMDB_Date = FlexDate{EPOCH,Int16} # should be enough for everything
 
 
 
 """
+    $SIGNATURES
 
+Process the stream `io` by line. Each line is parsed using `parser`, then
+
+1. if the parsing is successful, `f!` is called on the parsed record,
+
+2. if the parsing is not successful, an error is logged to `errors`. See
+[`log_error`](@ref).
+
+`tracker` is used to track progress.
+
+When `max_lines > 1`, it is used to limit the number of lines parsed.
 """
-function process_stream(io::IO, parser, f, errors::FileErrors;
-                        tracker_period = 10_000_000, max_lines = -1)
-    tracker = WallTimeTracker(tracker_period; item_name = "line")
+function process_stream(io::IO, parser, f!, errors::FileErrors;
+                        tracker = WallTimeTracker(10_000_000; item_name = "line"),
+                        max_lines = -1)
     while !eof(io) && (max_lines < 0 || count(tracker) < max_lines)
         line_content = readuntil(io, 0x0a)
         record = parsenext(parser, line_content, 1, UInt8(';'))
         if isparsed(record)
-            f(unsafe_get(record))
+            f!(unsafe_get(record))
         else
             log_error(errors, count(tracker), line_content, getpos(record))
         end
@@ -196,6 +219,12 @@ function process_stream(io::IO, parser, f, errors::FileErrors;
     end
 end
 
+"""
+    $SIGNATURES
+
+Open `filename` and process the resulting stream with [`process_stream`](@ref),
+which the other arguments are passed on to. Return the error log object.
+"""
 function process_file(filename, parser, f; args...)
     io = GzipDecompressorStream(open(filename))
     errors = FileErrors(filename)
@@ -204,7 +233,7 @@ function process_file(filename, parser, f; args...)
 end
 
 
-# narrowest ninteger
+# narrowest integer
 
 """
     narrowest_Int(min, max, [signed = true])
