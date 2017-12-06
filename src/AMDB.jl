@@ -151,7 +151,7 @@ callable.
 
 `keys` retrieves all the keys in the order of appearance.
 """
-AutoIndex{T,S}() where {T,S} = AutoIndex(Dict{T,S}())
+AutoIndex(T, S) = AutoIndex(Dict{T,S}())
 
 Base.length(ai::AutoIndex) = length(ai.dict)
 

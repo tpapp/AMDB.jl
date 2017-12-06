@@ -38,7 +38,7 @@ end
 @testset "auto indexing" begin
     aa = b"aa"
     bb = b"bb"
-    ai = AutoIndex{Vector{UInt8},Int8}()
+    ai = AutoIndex(Vector{UInt8}, Int8)
     @test ai(@view(aa[1:2])) == 1
     @test ai(bb) == 2
     @test ai(aa) == 1
