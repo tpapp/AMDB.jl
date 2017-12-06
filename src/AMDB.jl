@@ -4,6 +4,7 @@ using ArgCheck: @argcheck
 using ByteParsers: parsenext, isparsed, Skip
 using CodecZlib: GzipDecompressorStream
 using DocStringExtensions: SIGNATURES
+using DiscreteRanges: DiscreteRange
 using EnglishText: ItemQuantity
 using FlexDates: FlexDate
 # FIXME commented out selective import until
@@ -359,5 +360,41 @@ function preview_column(colname;
     values
 end
 
+
+# tuple processing (first pass)
+
+"""
+    $SIGNATURES
+
+Join the second and the third argument as a DiscreteRange compressed dates.
+"""
+join_dates(record) = _join_dates(record...)
+
+@inline _join_dates(id, spell_start, spell_end, rest...) =
+    id, DiscreteRange(AMDB_Date(spell_start), AMDB_Date(spell_end)), rest...
+
+struct MultiSubs{P, F}
+    functions::F
+end
+
+"""
+    $SIGNATURES
+
+Return a callable that maps tuples by maps elements at `positions` with the
+corresponding function in `functions`, leaving the rest of the elements alone.
+"""
+function MultiSubs(positions::NTuple{N, Int}, functions::F) where {N, F}
+    @argcheck length(positions) == length(functions)
+    @argcheck allunique(positions) && all(positions .> 0)
+    MultiSubs{positions, F}(functions)
+end
+
+@generated function (m::MultiSubs{P})(x::NTuple{N}) where {P, N}
+    result = Any[:(x[$i]) for i in 1:N]
+    for (i, p) in enumerate(P)
+        result[p] = :((m.functions[$i])(x[$p]))
+    end
+    :(tuple($(result...)))
+end
 
 end # module

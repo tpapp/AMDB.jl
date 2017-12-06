@@ -1,14 +1,19 @@
 using Base.Test
 
 using ByteParsers: Skip
+using DiscreteRanges
 
 using AMDB:
     # errors
     FileError, FileErrors, log_error,
     # autoindexing
     AutoIndex,
+    # dates
+    AMDB_Date,
     # utilities
-    narrowest_Int, to_narrowest_Int, column_parsers, TupleMap
+    narrowest_Int, to_narrowest_Int, column_parsers, TupleMap,
+    # tuples
+    join_dates, MultiSubs
 
 # write your own tests here
 @testset "paths" begin
@@ -74,4 +79,18 @@ end
 @testset "column parsers" begin
     c = column_parsers(["a", "b", "c", "d", "e"], ["b" => :b, "d" => :d])
     @test c == (Skip(), :b, Skip(), :d)
+end
+
+@testset "joindates" begin
+    id = 99
+    d1 = Date(1980, 1, 1)
+    d2 = Date(1990, 1, 1)
+    rest = (:misc, 42, :stuff)
+    @test join_dates((id, d1, d2, rest...)) ==
+        (id, DiscreteRange(AMDB_Date(d1), AMDB_Date(d2)), rest...)
+end
+
+@testset "multisubs" begin
+    m = MultiSubs((1, 3), (x->x^2, x->x^3))
+    @test @inferred(m((2, 3, 5))) ≡ (4, 3, 125)
 end
