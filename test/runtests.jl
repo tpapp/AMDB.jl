@@ -1,7 +1,7 @@
 using Base.Test
 
-using ByteParsers: Skip
-using DiscreteRanges
+using ByteParsers: Skip, parsenext, parsedtype, MaybeParsed
+using DiscreteRanges: DiscreteRange
 
 using AMDB:
     # errors
@@ -9,7 +9,7 @@ using AMDB:
     # autoindexing
     AutoIndex,
     # dates
-    AMDB_Date,
+    AMDB_Date, DatePair,
     # utilities
     narrowest_Int, to_narrowest_Int, column_parsers, TupleMap,
     # tuples
@@ -93,4 +93,11 @@ end
 @testset "multisubs" begin
     m = MultiSubs((1, 3), (x->x^2, x->x^3))
     @test @inferred(m((2, 3, 5))) ≡ (4, 3, 125)
+end
+
+@testset "DatePair parsing" begin
+    str = b"20010101;20020327;"
+    @test parsenext(DatePair(), str, 1, UInt8(';')) ≡
+        MaybeParsed(19, DiscreteRange(AMDB_Date(Date(2001, 1, 1)),
+                                      AMDB_Date(Date(2002, 3, 27))))
 end

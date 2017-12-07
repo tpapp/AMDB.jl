@@ -2,15 +2,18 @@ __precompile__()
 module AMDB
 
 using ArgCheck: @argcheck
-using ByteParsers: parsenext, isparsed, Skip
+using ByteParsers:
+    isparsed, Skip, Line, ByteVector, @checkpos, AbstractParser, parsedtype,
+    DateYYYYMMDD, MaybeParsed
+import ByteParsers: parsenext
 using CodecZlib: GzipDecompressorStream
 using DocStringExtensions: SIGNATURES
 using DiscreteRanges: DiscreteRange
 using EnglishText: ItemQuantity
 using FlexDates: FlexDate
-# FIXME commented out selective import until
-# https://github.com/mauro3/Parameters.jl/issues/43 is fidex
-using Parameters #: @unpack
+using LargeColumns: SinkColumns
+using Parameters: @unpack
+using RaggedData: RaggedCounter
 using WallTimeProgress: WallTimeTracker, increment!
 
 export
@@ -213,6 +216,157 @@ Datatype used for compressed dates.
 const AMDB_Date = FlexDate{EPOCH,Int16} # should be enough for everything
 
 
+# tuple processing (first pass)
+
+"""
+    $SIGNATURES
+
+Join the second and the third argument as a DiscreteRange compressed dates.
+"""
+join_dates(record) = _join_dates(record...)
+
+@inline _join_dates(id, spell_start, spell_end, rest...) =
+    id, DiscreteRange(AMDB_Date(spell_start), AMDB_Date(spell_end)), rest...
+
+struct MultiSubs{P, F}
+    functions::F
+end
+
+"""
+    $SIGNATURES
+
+Return a callable that maps tuples by maps elements at `positions` with the
+corresponding function in `functions`, leaving the rest of the elements alone.
+"""
+function MultiSubs(positions::NTuple{N, Int}, functions::F) where {N, F}
+    @argcheck length(positions) == length(functions)
+    @argcheck allunique(positions) && all(positions .> 0)
+    MultiSubs{positions, F}(functions)
+end
+
+@generated function (m::MultiSubs{P})(x::NTuple{N}) where {P, N}
+    result = Any[:(x[$i]) for i in 1:N]
+    for (i, p) in enumerate(P)
+        result[p] = :((m.functions[$i])(x[$p]))
+    end
+    :(tuple($(result...)))
+end
+
+
+# first pass processing
+
+"""
+    $SIGNATURES
+
+Merge the two column names for start and end dates of spells.
+"""
+function merged_colnames(; colnames = data_colnames())
+    @argcheck colnames[2:3] == ["ANFDAT", "ENDDAT"]
+    vcat(colnames[1:1], ["STARTEND"], colnames[4:end])
+end
+
+"""
+    DatePair()
+
+Parse two consecutive dates.
+"""
+struct DatePair <: AbstractParser{DiscreteRange{AMDB_Date}} end
+
+function parsenext(::DatePair, str::ByteVector, pos, sep)
+    D = DateYYYYMMDD()
+    @checkpos (pos, date1) = parsenext(D, str, pos, sep)
+    @checkpos (pos, date2) = parsenext(D, str, pos, sep)
+    return MaybeParsed(pos, DiscreteRange(AMDB_Date(date1), AMDB_Date(date2)))
+    @label error
+    MaybeParsed{Date}(pos_to_error(pos))
+end
+
+struct ColSpec
+    name::AbstractString
+    parser::AbstractParser
+    index_type::Type{<:Integer}
+end
+
+"""
+    ColSpec(name, parser, [index_type])
+
+Create a column specification for first pass reading.
+
+`name` is the name of the column, parsed using `parser`.
+
+When `index_type::Type{<:Integer}` is given, it is used as a result type to
+generate a `RaggedCounter` with the given result type, except for the first
+parsed column.
+
+See [`make_first_pass`](@ref).
+"""
+ColSpec(name, parser) = ColSpec(name, parser, Void)
+
+"""
+First pass processing.
+
+`lineparser` parsed each line.
+
+When successful, it is transformed with `multisubs`, changing the state of
+`accumulators`.
+
+The result is written into `sink`.
+"""
+struct FirstPass{L <: Line, R <: RaggedCounter, A <: Tuple,
+                 M <: MultiSubs, S <: SinkColumns}
+    lineparser::L
+    raggedcounter::R
+    accumulators::A
+    multisubs::M
+    sink::S
+    colnames::Vector{String}
+end
+
+function make_first_pass(colnames::AbstractVector,
+                         colspecs::AbstractVector{ColSpec},
+                         skip_parser = Skip())
+    @argcheck allunique(colnames) "Column names are not unique."
+    matched_specs = map(colspecs) do colspec
+        @unpack name, parser, index_type = colspec
+        index = findfirst(colnames, name)
+        index > 0 || throw(ArgumentError("column $(colname) not found"))
+        (index, name, parser, index_type)
+    end
+    # make sure column indexes are strictly increasing (no repetition, right order)
+    issorted(matched_specs, lt = <, by = first) ||
+        throw(ArgumentError("column names need to be in the same order as in data"))
+    # the default is to skip
+    parsers = fill!(Vector(matched_specs[end][1]), skip_parser)
+    result_types = Any[]
+    sub_positions = Int[]
+    sub_functions = Any[]
+    names = Vector{String}()
+    for (index, name, parser, index_type) in indexes_and_parsers
+        parsers[index] = parser
+        result_type = parsedtype(parser)
+        if !(index_type ≡ Void)
+            @argcheck index_type <: Integer
+            if index == 1
+                filter = RaggedCounter(result_type, index_type)
+            else
+                filter = AutoIndex(result_type, index_type)
+            end
+            result_type = index_type
+            push!(sub_positions, index)
+            push!(sub_functions, filter)
+        end
+        push!(result_types, result_type)
+        push!(names, convert(String, name))
+    end
+    accumulators = tuple(sub_functions...)
+    FirstPass(Line(parsers...),
+              Base.head(accumulators),
+              Base.tail(accumulators),
+              MultiSubs(tuple(sub_positions...), accumulators),
+              SinkColumns(dir, Tuple{result_types...}),
+              names)
+end
+
 
 """
     $SIGNATURES
@@ -228,14 +382,15 @@ Process the stream `io` by line. Each line is parsed using `parser`, then
 
 When `max_lines > 1`, it is used to limit the number of lines parsed.
 """
-function process_stream(io::IO, parser, f!, errors::FileErrors;
+function firstpass_stream(io::IO, fp::FirstPass, errors::FileErrors;
                         tracker = WallTimeTracker(10_000_000; item_name = "line"),
                         max_lines = -1)
+    @unpack lineparser, multisubs, sink = fp
     while !eof(io) && (max_lines < 0 || count(tracker) < max_lines)
         line_content = readuntil(io, 0x0a)
-        record = parsenext(parser, line_content, 1, UInt8(';'))
+        record = parsenext(lineparser, line_content, 1, UInt8(';'))
         if isparsed(record)
-            f!(unsafe_get(record))
+            push!(sink, multisubs(record))
         else
             log_error(errors, count(tracker), line_content, getpos(record))
         end
@@ -246,13 +401,14 @@ end
 """
     $SIGNATURES
 
-Open `filename` and process the resulting stream with [`process_stream`](@ref),
-which the other arguments are passed on to. Return the error log object.
+Open `filename` and process the resulting stream with
+[`firstpass_stream`](@ref), which the other arguments are passed on to. Return
+the error log object.
 """
-function process_file(filename, parser, f; args...)
+function firstpass_file(filename, fp; args...)
     io = GzipDecompressorStream(open(filename))
     errors = FileErrors(filename)
-    process_stream(io, parser, f, errors; args...)
+    process_stream(io, parser, fp; args...)
     errors
 end
 
@@ -359,43 +515,6 @@ function preview_column(colname;
     close(io)
     close(io_gz)
     values
-end
-
-
-# tuple processing (first pass)
-
-"""
-    $SIGNATURES
-
-Join the second and the third argument as a DiscreteRange compressed dates.
-"""
-join_dates(record) = _join_dates(record...)
-
-@inline _join_dates(id, spell_start, spell_end, rest...) =
-    id, DiscreteRange(AMDB_Date(spell_start), AMDB_Date(spell_end)), rest...
-
-struct MultiSubs{P, F}
-    functions::F
-end
-
-"""
-    $SIGNATURES
-
-Return a callable that maps tuples by maps elements at `positions` with the
-corresponding function in `functions`, leaving the rest of the elements alone.
-"""
-function MultiSubs(positions::NTuple{N, Int}, functions::F) where {N, F}
-    @argcheck length(positions) == length(functions)
-    @argcheck allunique(positions) && all(positions .> 0)
-    MultiSubs{positions, F}(functions)
-end
-
-@generated function (m::MultiSubs{P})(x::NTuple{N}) where {P, N}
-    result = Any[:(x[$i]) for i in 1:N]
-    for (i, p) in enumerate(P)
-        result[p] = :((m.functions[$i])(x[$p]))
-    end
-    :(tuple($(result...)))
 end
 
 end # module
