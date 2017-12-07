@@ -284,11 +284,11 @@ end
 struct ColSpec
     name::AbstractString
     parser::AbstractParser
-    index_type::Type{<:Integer}
+    index_type::Type{ <: Union{Void, Integer}}
 end
 
 """
-    ColSpec(name, parser, [index_type])
+    $SIGNATURES
 
 Create a column specification for first pass reading.
 
@@ -300,7 +300,7 @@ parsed column.
 
 See [`make_first_pass`](@ref).
 """
-ColSpec(name, parser) = ColSpec(name, parser, Void)
+ColSpec(name, parser; index_type = Void) = ColSpec(name, parser, index_type)
 
 """
 First pass processing.
@@ -319,12 +319,12 @@ struct FirstPass{L <: Line, R <: RaggedCounter, A <: Tuple,
     accumulators::A
     multisubs::M
     sink::S
-    colnames::Vector{String}
+    colnames::Vector{Symbol}
 end
 
-function make_first_pass(colnames::AbstractVector,
-                         colspecs::AbstractVector{ColSpec},
-                         skip_parser = Skip())
+function make_firstpass(dir, colspecs::AbstractVector{ColSpec};
+                        colnames = merged_colnames(),
+                        skip_parser = Skip())
     @argcheck allunique(colnames) "Column names are not unique."
     matched_specs = map(colspecs) do colspec
         @unpack name, parser, index_type = colspec
@@ -340,8 +340,8 @@ function make_first_pass(colnames::AbstractVector,
     result_types = Any[]
     sub_positions = Int[]
     sub_functions = Any[]
-    names = Vector{String}()
-    for (index, name, parser, index_type) in indexes_and_parsers
+    names = Vector{Symbol}()
+    for (index, name, parser, index_type) in matched_specs
         parsers[index] = parser
         result_type = parsedtype(parser)
         if !(index_type ≡ Void)
@@ -356,17 +356,17 @@ function make_first_pass(colnames::AbstractVector,
             push!(sub_functions, filter)
         end
         push!(result_types, result_type)
-        push!(names, convert(String, name))
+        push!(names, Symbol(name))
     end
-    accumulators = tuple(sub_functions...)
     FirstPass(Line(parsers...),
-              Base.head(accumulators),
-              Base.tail(accumulators),
-              MultiSubs(tuple(sub_positions...), accumulators),
+              sub_functions[1],
+              tuple(sub_functions[2:end]...),
+              MultiSubs(tuple(sub_positions...), tuple(sub_functions...)),
               SinkColumns(dir, Tuple{result_types...}),
               names)
 end
 
+Base.close(fp::FirstPass) = close(fp.sink)
 
 """
     $SIGNATURES
