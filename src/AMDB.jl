@@ -1,3 +1,4 @@
+__precompile__()
 module AMDB
 
 using ArgCheck: @argcheck
