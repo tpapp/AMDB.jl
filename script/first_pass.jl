@@ -1,66 +1,71 @@
-######################################################################
 # first pass: read whole file, save in binary format, count IDs for
 # collation, store AM spell strings in the order of appearance
-######################################################################
 
-using AMDB
-using ByteParsers
+using AMDB:
+    ColSpec, make_firstpass, data_path, firstpass_process_file, all_data_files,
+    get_positions
+using ArgCheck
+using ByteParsers:
+    Line, DateYYYYMMDD, PosInteger, ViewBytes, parsedtype, ByteVector, FixEmpty
 using DiscreteRanges
+using DocStringExtensions
 using JLD2
 using FileIO
 using LargeColumns
 using RaggedData
 
-import AMDB:
-    process_file,                         # file processing with parser
-    AutoIndex
+# AMDB.preview_column("AVG_BMG")
 
-# if this part breaks, then column names changed, *rewrite*
-cols = AMDB.data_colnames()
-@assert cols[1] == "PENR"
-@assert cols[6] == "AM"
-
-mutable struct FirstPass{Tid, TAM, TAM_ix, Tsink}
-    id_counter::RaggedCounter{Tid, Int32}
-    AMs::AutoIndex{TAM, TAM_ix} # labor market spells ("Arbeitsmarkt")
-    sink::Tsink
-end
-
-# convenience constructor
-function FirstPass(parser::Line, dir)
-    FirstPass(RaggedCounter(Int32, Int32),
-              AutoIndex{Vector{UInt8}, Int8}(),
-              SinkColumns(dir, Tuple{Int32, Int8, DiscreteRange{AMDB_Date}}))
-end
-
-function (fp::FirstPass{Tid, TAM, TAM_ix, TIO})(record) where {Tid,TAM,TAM_ix,TIO}
-    id_wide, date_start, date_stop, AM = record
-    id = Tid(id_wide)           # conversion to (possibly) narrower type
-    push!(fp.id_counter, id)
-    push!(fp.sink,
-          (id, TAM_ix(fp.AMs[AM]), AMDB_Date(date_start)..AMDB_Date(date_stop)))
-end
-
-Base.close(fp::FirstPass) = close(fp.sink)
-
-parser_id_am = Line(PositiveInteger(Int64),
-                    DateYYYYMMDD(), DateYYYYMMDD(), Skip(), Skip(),
-                    ViewBytes())
+colspecs = [
+    # 1, person id
+    ColSpec("PENR", PosInteger(Int32); index_type = Int32),
+    # 2:3, spell start, Date
+    ColSpec("STARTEND", AMDB.DatePair()),
+    # 4, firm id, Int64 for some reason?
+    ColSpec("BENR", FixEmpty(-1, PosInteger(Int64))), # missing as -1
+    # 6, labor market status
+    ColSpec("AM", ViewBytes(), index_type = Int8),
+    # 17, number of employees,  seems to be capped at 1000?
+    ColSpec("SUM_MA", FixEmpty(-1, PosInteger(Int16))), # missing as -1
+    # 19, industry code, 4 digits, has strings like XXXX?
+    ColSpec("NACE", ViewBytes(); index_type = Int16),
+    # 21, geographical location; 3 digits
+    ColSpec("RGS", ViewBytes(); index_type = Int16),
+    # 35, wage data
+    ColSpec("AVG_BMG", FixEmpty(-1, PosInteger(Int32))), # missing wage as -1
+]
 
 dir = data_path("first_pass")
 mkpath(dir)
-fp = FirstPass(parser_id_am, dir)
+fp = make_firstpass(dir, colspecs)
+
+# quick check
+@assert fp.colnames ==
+    [:PENR, :STARTEND, :BENR, :AM, :SUM_MA, :NACE, :RGS, :AVG_BMG]
+
 error_io = open(data_path("first_pass_errors.txt"), "w")
-println(error_io, "first pass started at $(Dates.now()) on machine $(gethostname())")
-for file in all_data_files()
-    println("processing $file")
-    err = process_file(file, parser_id_am, fp)
+println(error_io,
+        "first pass started at $(Dates.now()) on machine $(gethostname())")
+for filename in all_data_files()
+    println("processing $filename")
+    err = firstpass_process_file(filename, fp)
     show(error_io, err)
 end
 close(error_io)
 close(fp)
 
+"""
+    $SIGNATURES
+
+Convert keys to string.
+"""
+function keys_to_string(accumulator)
+    map(String ∘ copy, keys(accumulator))
+end
+
 # save the keys
 save(meta_path(dir, "meta.jld2"),
-     "AM_keys", map(String, keys(fp.AMs)),
-     "id_counter", fp.id_counter)
+     "id_counter", fp.raggedcounter,
+     AMDB.META_INDEXED_KEYS, map(keys_to_string, collect(fp.accumulators)),
+     AMDB.META_INDEXED_POSITIONS, collect(get_positions(fp.multisubs)),
+     AMDB.META_COLUMN_NAMES, fp.colnames)
