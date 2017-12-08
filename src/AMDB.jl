@@ -4,7 +4,7 @@ module AMDB
 using ArgCheck: @argcheck
 using ByteParsers:
     isparsed, Skip, Line, ByteVector, @checkpos, AbstractParser, parsedtype,
-    DateYYYYMMDD, MaybeParsed
+    DateYYYYMMDD, MaybeParsed, getpos
 import ByteParsers: parsenext
 using CodecZlib: GzipDecompressorStream
 using DocStringExtensions: SIGNATURES
@@ -328,9 +328,9 @@ function make_firstpass(dir, colspecs::AbstractVector{ColSpec};
     @argcheck allunique(colnames) "Column names are not unique."
     matched_specs = map(colspecs) do colspec
         @unpack name, parser, index_type = colspec
-        index = findfirst(colnames, name)
-        index > 0 || throw(ArgumentError("column $(colname) not found"))
-        (index, name, parser, index_type)
+        colindex = findfirst(colnames, name)
+        colindex > 0 || throw(ArgumentError("column $(colname) not found"))
+        (colindex, name, parser, index_type)
     end
     # make sure column indexes are strictly increasing (no repetition, right order)
     issorted(matched_specs, lt = <, by = first) ||
@@ -341,18 +341,18 @@ function make_firstpass(dir, colspecs::AbstractVector{ColSpec};
     sub_positions = Int[]
     sub_functions = Any[]
     names = Vector{Symbol}()
-    for (index, name, parser, index_type) in matched_specs
-        parsers[index] = parser
+    for (position, (colindex, name, parser, index_type)) in enumerate(matched_specs)
+        parsers[colindex] = parser
         result_type = parsedtype(parser)
         if !(index_type ≡ Void)
             @argcheck index_type <: Integer
-            if index == 1
+            if colindex == 1
                 filter = RaggedCounter(result_type, index_type)
             else
                 filter = AutoIndex(result_type, index_type)
             end
             result_type = index_type
-            push!(sub_positions, index)
+            push!(sub_positions, position)
             push!(sub_functions, filter)
         end
         push!(result_types, result_type)
@@ -382,15 +382,16 @@ Process the stream `io` by line. Each line is parsed using `parser`, then
 
 When `max_lines > 1`, it is used to limit the number of lines parsed.
 """
-function firstpass_stream(io::IO, fp::FirstPass, errors::FileErrors;
-                        tracker = WallTimeTracker(10_000_000; item_name = "line"),
-                        max_lines = -1)
+function firstpass_process_stream(io::IO, fp::FirstPass, errors::FileErrors;
+                                  tracker = WallTimeTracker(10_000_000;
+                                                            item_name = "line"),
+                                  max_lines = -1)
     @unpack lineparser, multisubs, sink = fp
     while !eof(io) && (max_lines < 0 || count(tracker) < max_lines)
         line_content = readuntil(io, 0x0a)
         record = parsenext(lineparser, line_content, 1, UInt8(';'))
         if isparsed(record)
-            push!(sink, multisubs(record))
+            push!(sink, multisubs(unsafe_get(record)))
         else
             log_error(errors, count(tracker), line_content, getpos(record))
         end
@@ -405,10 +406,10 @@ Open `filename` and process the resulting stream with
 [`firstpass_stream`](@ref), which the other arguments are passed on to. Return
 the error log object.
 """
-function firstpass_file(filename, fp; args...)
+function firstpass_process_file(filename, fp; args...)
     io = GzipDecompressorStream(open(filename))
     errors = FileErrors(filename)
-    process_stream(io, parser, fp; args...)
+    firstpass_process_stream(io, fp, errors; args...)
     errors
 end
 
