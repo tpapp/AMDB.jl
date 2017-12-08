@@ -1,6 +1,8 @@
 __precompile__()
 module AMDB
 
+import Base: close, count, keys, length, show
+
 using ArgCheck: @argcheck
 using ByteParsers:
     isparsed, Skip, Line, ByteVector, @checkpos, AbstractParser, parsedtype,
@@ -109,7 +111,7 @@ struct FileError
     line_position::Int
 end
 
-function Base.show(io::IO, file_error::FileError)
+function show(io::IO, file_error::FileError)
     @unpack line_number, line_content, line_position = file_error
     println(io, chomp(String(line_content)))
     print(io, " "^(line_position - 1))
@@ -129,7 +131,7 @@ function log_error(file_errors::FileErrors, line_number, line_content,
           FileError(line_number, line_content, line_position))
 end
 
-function Base.show(io::IO, file_errors::FileErrors)
+function show(io::IO, file_errors::FileErrors)
     @unpack filename, errors = file_errors
     error_quantity = ItemQuantity(length(errors), "error")
     println(io, "$filename: $(error_quantity)")
@@ -138,7 +140,7 @@ function Base.show(io::IO, file_errors::FileErrors)
     end
 end
 
-Base.count(file_errors::FileErrors) = length(file_errors.errors)
+count(file_errors::FileErrors) = length(file_errors.errors)
 
 
 # automatic indexation
@@ -146,6 +148,9 @@ Base.count(file_errors::FileErrors) = length(file_errors.errors)
 struct AutoIndex{T, S <: Integer}
     dict::Dict{T, S}
 end
+
+show(io::IO, ai::AutoIndex{T, S}) where {T, S} =
+    print(io, "automatically index $T => $S, $(length(ai.dict)) elements")
 
 """
     $SIGNATURES
@@ -158,7 +163,7 @@ callable.
 """
 AutoIndex(T, S) = AutoIndex(Dict{T,S}())
 
-Base.length(ai::AutoIndex) = length(ai.dict)
+length(ai::AutoIndex) = length(ai.dict)
 
 function (ai::AutoIndex{T,S})(elt::E) where {T,S,E}
     @unpack dict = ai
@@ -174,7 +179,7 @@ function (ai::AutoIndex{T,S})(elt::E) where {T,S,E}
     end
 end
 
-function Base.keys(ai::AutoIndex)
+function keys(ai::AutoIndex)
     kv = collect(ai.dict)
     sort!(kv; by = last)
     first.(kv)
@@ -245,11 +250,24 @@ function MultiSubs(positions::NTuple{N, Int}, functions::F) where {N, F}
     MultiSubs{positions, F}(functions)
 end
 
-@generated function (m::MultiSubs{P})(x::NTuple{N}) where {P, N}
+"""
+    $SIGNATURES
+
+Return positions of substituted indices.
+"""
+get_positions(::MultiSubs{P}) where P = P
+
+@generated function (m::MultiSubs{P})(x::NTuple{N, Any}) where {P, N}
     result = Any[:(x[$i]) for i in 1:N]
+    println("*** result")
+    println(result)
+    println("*** P")
+    println(P)
     for (i, p) in enumerate(P)
         result[p] = :((m.functions[$i])(x[$p]))
     end
+    println("*** result after substitutions")
+    println(result)
     :(tuple($(result...)))
 end
 
@@ -323,6 +341,17 @@ struct FirstPass{L <: Line, R <: RaggedCounter, A <: Tuple,
     colnames::Vector{Symbol}
 end
 
+function show(io::IO, fp::FirstPass)
+    @unpack lineparser, accumulators, colnames = fp
+    println(io, "First pass parsing")
+    println(io, "Line parser:")
+    println(io, lineparser)
+    println(io, "Accumulators:")
+    println(io, accumulators)
+    println(io, "Colnames:")
+    println(io, colnames)
+end
+
 function make_firstpass(dir, colspecs::AbstractVector{ColSpec};
                         colnames = merged_colnames(),
                         skip_parser = Skip())
@@ -367,7 +396,7 @@ function make_firstpass(dir, colspecs::AbstractVector{ColSpec};
               names)
 end
 
-Base.close(fp::FirstPass) = close(fp.sink)
+close(fp::FirstPass) = close(fp.sink)
 
 """
     $SIGNATURES
