@@ -11,9 +11,9 @@ using AMDB:
     # dates
     AMDB_Date, DatePair,
     # utilities
-    narrowest_Int, to_narrowest_Int, column_parsers, TupleMap,
+    narrowest_Int, to_narrowest_Int,
     # tuples
-    join_dates, MultiSubs
+    MultiSubs, get_positions
 
 # write your own tests here
 @testset "paths" begin
@@ -62,12 +62,6 @@ end
 
 struct AddOne end
 
-@testset "tuple map" begin
-    (::AddOne)(x) = x + one(x)
-    f = TupleMap((AddOne(), identity))
-    @test @inferred(f((1,3))) == (2,3)
-end
-
 @testset "integer narrowing" begin
     ≖(x, y) = false             # also compare types
     ≖(x::Vector{T}, y::Vector{T}) where {T} = isequal(x, y)
@@ -76,23 +70,10 @@ end
     @test to_narrowest_Int([99, 32768]) ≖ Int32[99, 32768]
 end
 
-@testset "column parsers" begin
-    c = column_parsers(["a", "b", "c", "d", "e"], ["b" => :b, "d" => :d])
-    @test c == (Skip(), :b, Skip(), :d)
-end
-
-@testset "joindates" begin
-    id = 99
-    d1 = Date(1980, 1, 1)
-    d2 = Date(1990, 1, 1)
-    rest = (:misc, 42, :stuff)
-    @test join_dates((id, d1, d2, rest...)) ==
-        (id, DiscreteRange(AMDB_Date(d1), AMDB_Date(d2)), rest...)
-end
-
 @testset "multisubs" begin
     m = MultiSubs((1, 3), (x->x^2, x->x^3))
     @test @inferred(m((2, 3, 5))) ≡ (4, 3, 125)
+    @test get_positions(m) ≡ (1, 3)
 end
 
 @testset "DatePair parsing" begin
