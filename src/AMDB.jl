@@ -180,27 +180,27 @@ function Base.keys(ai::AutoIndex)
     first.(kv)
 end
 
-
-# map using a tuple of functions
+# FIXME remove unused 
+# # map using a tuple of functions
 
-"""
-    TupleMap(functions::Tuple)
+# """
+#     TupleMap(functions::Tuple)
 
-Return a callable that maps a tuple of the same dimension using `functions`,
-which should be a tuple of callables (do not need to be `<: Function`).
+# Return a callable that maps a tuple of the same dimension using `functions`,
+# which should be a tuple of callables (do not need to be `<: Function`).
 
-```julia
-struct AddOne end
-(::AddOne)(x) = x + one(x)
-f = TupleMap((AddOne(), identity))
-f((1,3))                        # (2,3)
-```
-"""
-struct TupleMap{T <: Tuple}
-    functions::T
-end
+# ```julia
+# struct AddOne end
+# (::AddOne)(x) = x + one(x)
+# f = TupleMap((AddOne(), identity))
+# f((1,3))                        # (2,3)
+# ```
+# """
+# struct TupleMap{T <: Tuple}
+#     functions::T
+# end
 
-(f::TupleMap)(x::Tuple) = map((g, z) -> g(z), f.functions, x)
+# (f::TupleMap)(x::Tuple) = map((g, z) -> g(z), f.functions, x)
 
 
 # dates
@@ -218,15 +218,16 @@ const AMDB_Date = FlexDate{EPOCH,Int16} # should be enough for everything
 
 # tuple processing (first pass)
 
-"""
-    $SIGNATURES
+# FIXME remove, unused
+# """
+#     $SIGNATURES
 
-Join the second and the third argument as a DiscreteRange compressed dates.
-"""
-join_dates(record) = _join_dates(record...)
+# Join the second and the third argument as a DiscreteRange compressed dates.
+# """
+# join_dates(record) = _join_dates(record...)
 
-@inline _join_dates(id, spell_start, spell_end, rest...) =
-    id, DiscreteRange(AMDB_Date(spell_start), AMDB_Date(spell_end)), rest...
+# @inline _join_dates(id, spell_start, spell_end, rest...) =
+#     id, DiscreteRange(AMDB_Date(spell_start), AMDB_Date(spell_end)), rest...
 
 struct MultiSubs{P, F}
     functions::F
