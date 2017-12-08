@@ -259,15 +259,9 @@ get_positions(::MultiSubs{P}) where P = P
 
 @generated function (m::MultiSubs{P})(x::NTuple{N, Any}) where {P, N}
     result = Any[:(x[$i]) for i in 1:N]
-    println("*** result")
-    println(result)
-    println("*** P")
-    println(P)
     for (i, p) in enumerate(P)
         result[p] = :((m.functions[$i])(x[$p]))
     end
-    println("*** result after substitutions")
-    println(result)
     :(tuple($(result...)))
 end
 
