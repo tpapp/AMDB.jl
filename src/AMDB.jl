@@ -602,7 +602,7 @@ const META_COLUMN_NAMES = "column_names"
 Read the collated dataset as a dictinary of `:colname => column` pairs.
 
 All columns are of the same length, except for `:ix`, which contains ranges that
-select contiguous records for an individual.
+select contiguous records for an individual in the *other* columns.
 """
 function collated_dataset(dir = "collated")
     collated = MmappedColumns(data_path(dir))

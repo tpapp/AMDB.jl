@@ -8,7 +8,7 @@ using AMDB:
 using ByteParsers:
     Line, DateYYYYMMDD, PosInteger, ViewBytes, parsedtype, ByteVector, FixEmpty
 # using DiscreteRanges
-# using DocStringExtensions
+using DocStringExtensions: SIGNATURES
 using JLD2
 using FileIO
 using LargeColumns: meta_path
