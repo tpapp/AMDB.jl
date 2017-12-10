@@ -3,16 +3,15 @@
 
 using AMDB:
     ColSpec, make_firstpass, data_path, firstpass_process_file, all_data_files,
-    get_positions
-using ArgCheck
+    get_positions, AutoIndex
+# using ArgCheck
 using ByteParsers:
     Line, DateYYYYMMDD, PosInteger, ViewBytes, parsedtype, ByteVector, FixEmpty
-using DiscreteRanges
-using DocStringExtensions
+# using DiscreteRanges
+# using DocStringExtensions
 using JLD2
 using FileIO
-using LargeColumns
-using RaggedData
+using LargeColumns: meta_path
 
 # AMDB.preview_column("AVG_BMG")
 
@@ -22,7 +21,7 @@ colspecs = [
     # 2:3, spell start, Date
     ColSpec("STARTEND", AMDB.DatePair()),
     # 4, firm id, Int64 for some reason?
-    ColSpec("BENR", FixEmpty(-1, PosInteger(Int64))), # missing as -1
+    ColSpec("BENR", FixEmpty(-1, PosInteger(Int64)); index_type = Int32), # missing as -1
     # 6, labor market status
     ColSpec("AM", ViewBytes(), index_type = Int8),
     # 17, number of employees,  seems to be capped at 1000?
@@ -30,7 +29,7 @@ colspecs = [
     # 19, industry code, 4 digits, has strings like XXXX?
     ColSpec("NACE", ViewBytes(); index_type = Int16),
     # 21, geographical location; 3 digits
-    ColSpec("RGS", ViewBytes(); index_type = Int16),
+    ColSpec("RGS", ViewBytes(); index_type = UInt8), # enough to contain it, has around 130
     # 35, wage data
     ColSpec("AVG_BMG", FixEmpty(-1, PosInteger(Int32))), # missing wage as -1
 ]
@@ -59,13 +58,15 @@ close(fp)
 
 Convert keys to string.
 """
-function keys_to_string(accumulator)
+collect_keys(accumulator::AutoIndex{<: Integer}) = collect(keys(accumulator))
+
+function collect_keys(accumulator::AutoIndex{<:SubArray{UInt8}})
     map(String ∘ copy, keys(accumulator))
 end
 
 # save the keys
 save(meta_path(dir, "meta.jld2"),
-     "id_counter", fp.raggedcounter,
-     AMDB.META_INDEXED_KEYS, map(keys_to_string, collect(fp.accumulators)),
-     AMDB.META_INDEXED_POSITIONS, collect(get_positions(fp.multisubs)),
+     "id_counter", fp.orderedcounter,
+     AMDB.META_INDEXED_KEYS, map(collect_keys, fp.accumulators),
+     AMDB.META_INDEXED_POSITIONS, collect(get_positions(fp.multisubs))[2:end],
      AMDB.META_COLUMN_NAMES, fp.colnames)

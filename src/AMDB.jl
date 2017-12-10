@@ -171,7 +171,7 @@ function (ai::AutoIndex{T,S})(elt::E) where {T,S,E}
     ix = get(dict, elt, zero(S))
     if ix == zero(S)
         v = length(dict)
-        @assert v < typemax(S) "Number of elements reached typemax($S)"
+        @assert v < typemax(S) "Number of elements reached typemax($S), can't insert $elt"
         v += one(S)
         dict[T==E ? elt : convert(T, elt)] = v
         v
@@ -398,7 +398,7 @@ function make_firstpass(dir, colspecs::AbstractVector{ColSpec};
         if !(index_type ≡ Void)
             @argcheck index_type <: Integer
             if colindex == 1
-                filter = OrderedCounter(result_type, index_type)
+                filter = OrderedCounter{result_type, index_type}()
             else
                 filter = AutoIndex(result_type, index_type)
             end
@@ -567,6 +567,41 @@ function preview_column(colname;
     close(io)
     close(io_gz)
     values
+end
+
+
+# rudimentary format for metadata
+
+"""
+Key for the index of individual-specific spells, in metadata for collated
+columns (`Vector{UnitRange{ <: Integer}}`).
+"""
+const META_IX = "ix"
+
+"""
+Key for the keys of indexed columns (ie strings), in metadata for collated
+columns (`Vector{Vector{String}}`).
+"""
+const META_INDEXED_KEYS = "indexed_keys"
+
+"""
+Key for the keys of indexed columns (ie strings), in metadata for collated
+columns (`Vector{Int}`).
+"""
+const META_INDEXED_POSITIONS = "indexed_positions"
+
+"""
+Key for the keys of indexed columns (ie strings), in metadata for collated
+columns `(Vector{Symbol}`).
+"""
+const META_COLUMN_NAMES = "column_names"
+
+function collated_column_dict(dir;
+                              meta_ix = META_IX,
+                              meta_indexed_keys = META_INDEXED_KEYS,
+                              meta_indexed_positions = META_INDEXED_POSITIONS,
+                              meta_column_names = META_COLUMN_NAMES)
+    1
 end
 
 end # module

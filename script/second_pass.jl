@@ -1,48 +1,71 @@
-######################################################################
 # second pass: collate dataset by individual IDs, forming contiguous records
-######################################################################
 
-using AMDB
-using DiscreteRanges
-using JLD2
-using FileIO
-using RaggedData
-using LargeColumns
-using WallTimeProgress
-import Base.Mmap: sync!
+using AMDB: data_path
+using DocStringExtensions: SIGNATURES
+import JLD2
+using FileIO: save, load
+using RaggedData: contiguous_invperm!, contiguous_ranges, ordered_counts
+using LargeColumns: MmappedColumns, meta_path, get_columns
+using ProgressMeter: @showprogress
+using Base.Mmap: mmap, sync!
 
+# load first pass
 first_pass = MmappedColumns(data_path("first_pass"));
-
 N = length(first_pass)
-
-collated = MmappedColumns(data_path("collated"), N,
-                          Tuple{Int8, DiscreteRange{AMDB_Date}});
 
 # load metadata
 meta = load(meta_path(first_pass, "meta.jld2"))
-id_counter = meta["id_counter"]
+counts = AMDB.get_counts(meta["id_counter"])
 
-coll, ix, id = collate_index_keys(id_counter, true);
+# permute to make IDs contiguous
+tmp = MmappedColumns(mktempdir(), N, Tuple{Int32}); # permutations are mmapped
+ip = get_columns(tmp)[1];
+contiguous_invperm!(ip, get_columns(first_pass)[1], counts)
 
-# collate by IDs
+collated = MmappedColumns(data_path("collated"), N, eltype(first_pass));
 
-function collate_first_pass!(coll, first_pass, collated)
-    tracker = WallTimeTracker(10_000_000; item_name = "record")
-    @assert length(first_pass) == length(collated)
-    @inbounds for i in indices(first_pass, 1)
-        id, AM_ix, dates = first_pass[i]
-        j = next_index!(coll, id)
-        collated[j] = (AM_ix, dates)
-        increment!(tracker)
+columns_first = get_columns(first_pass)
+columns_collated = get_columns(collated)
+
+"""
+    $SIGNATURES
+
+Apply inverse permutation `ip` from `source` to `dest`.
+"""
+function permute_column!(ip, source, dest)
+    @assert eltype(source) == eltype(dest)
+    println("permuting column of $(eltype(source))s...")
+    @showprogress for i in indices(ip, 1)
+        dest[ip[i]] = source[i]
     end
+    sync!(dest)
 end
 
-collate_first_pass!(coll, first_pass, collated)
+for (source, dest) in zip(columns_first, columns_collated)
+    permute_column!(ip, source, dest)
+end
 
 sync!(collated)
 
-# save metadata
+# indices are now contiguous, CHECK
+ix = contiguous_ranges(counts);
 
-save(meta_path(collated, "meta.jld2"),
-     "ix", ix,
-     "AM_keys", meta["AM_keys"])
+# function check_contiguous(x, ix)
+#     _same(x) = all(x[1] .== x[2:end])
+#     for r in ix
+#         xv = @view(x[r])
+#         if !_same(xv)
+#             println("non-contiguous at $r")
+#             println(xv)
+#         end
+#     end
+# end
+
+# check_contiguous(get_columns(collated)[1], ix)
+
+meta2 = copy(meta)
+delete!(meta2, "id_counter")
+meta2[AMDB.META_IX] = ix
+
+# save metadata, now it can be reused as is for the third pass and the data analysis
+save(meta_path(collated, "meta.jld2"), meta2)
