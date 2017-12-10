@@ -596,12 +596,29 @@ columns `(Vector{Symbol}`).
 """
 const META_COLUMN_NAMES = "column_names"
 
-function collated_column_dict(dir;
-                              meta_ix = META_IX,
-                              meta_indexed_keys = META_INDEXED_KEYS,
-                              meta_indexed_positions = META_INDEXED_POSITIONS,
-                              meta_column_names = META_COLUMN_NAMES)
-    1
+"""
+    $SIGNATURES
+
+Read the collated dataset as a dictinary of `:colname => column` pairs.
+
+All columns are of the same length, except for `:ix`, which contains ranges that
+select contiguous records for an individual.
+"""
+function collated_dataset(dir = "collated")
+    collated = MmappedColumns(data_path(dir))
+    meta = load(meta_path(collated, "meta.jld2"))
+    dict = Dict{Symbol, AbstractVector{<: Any}}()
+    dict[:ix] = meta[META_IX]
+    columns = collect(get_columns(collated))
+    for (indexed_position, indexed_keys) in zip(meta[META_INDEXED_POSITIONS],
+                                                meta[META_INDEXED_KEYS])
+        columns[indexed_position] = IndirectArray(columns[indexed_position],
+                                                  indexed_keys)
+    end
+    for (colname, column) in zip(meta[META_COLUMN_NAMES], columns)
+        dict[colname] = column
+    end
+    dict
 end
 
 end # module
