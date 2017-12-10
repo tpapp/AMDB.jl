@@ -7,7 +7,7 @@ using AMDB:
     # errors
     FileError, FileErrors, log_error,
     # autoindexing
-    AutoIndex,
+    AutoIndex, OrderedCounter,
     # dates
     AMDB_Date, DatePair,
     # utilities
@@ -81,4 +81,15 @@ end
     @test parsenext(DatePair(), str, 1, UInt8(';')) ≡
         MaybeParsed(19, DiscreteRange(AMDB_Date(Date(2001, 1, 1)),
                                       AMDB_Date(Date(2002, 3, 27))))
+end
+
+@testset "ordered counter" begin
+    oc = OrderedCounter{Int, Int32}()
+    @test oc(1) == 1
+    @test oc(2) == 2
+    @test oc(2) == 2
+    @test oc(3) == 3
+    @test oc(1) == 1
+    @test collect(keys(oc)) == Int32[1, 2, 3]
+    @test collect(values(oc)) == Int[2, 2, 1]
 end

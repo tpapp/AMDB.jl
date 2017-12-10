@@ -1,7 +1,7 @@
 __precompile__()
 module AMDB
 
-import Base: close, count, keys, length, show
+import Base: close, count, keys, length, show, keys, values
 
 using ArgCheck: @argcheck
 using ByteParsers:
@@ -9,13 +9,14 @@ using ByteParsers:
     DateYYYYMMDD, MaybeParsed, getpos
 import ByteParsers: parsenext
 using CodecZlib: GzipDecompressorStream
+using DataStructures: OrderedDict
 using DocStringExtensions: SIGNATURES
 using DiscreteRanges: DiscreteRange
 using EnglishText: ItemQuantity
 using FlexDates: FlexDate
-using LargeColumns: SinkColumns
+using LargeColumns: SinkColumns, meta_path
+using Lazy: @forward
 using Parameters: @unpack
-using RaggedData: RaggedCounter
 using WallTimeProgress: WallTimeTracker, increment!
 
 export
@@ -266,7 +267,33 @@ get_positions(::MultiSubs{P}) where P = P
 end
 
 
-# first pass processing
+
+"""
+    OrderedCounter{T,S}()
+
+A wrapper for OrderedDict that is callable, counts and returns its argument.
+"""
+struct OrderedCounter{T,S <: Integer}
+    dict::OrderedDict{T,S}
+end
+
+OrderedCounter{T, S}() where {T, S} = OrderedCounter(OrderedDict{T, S}())
+
+function (oc::OrderedCounter{T,S})(x::T) where {T,S}
+    oc.dict[x] = get(oc.dict, x, zero(S)) + one(S)
+    x
+end
+
+@forward OrderedCounter.dict keys, values
+
+"""
+    $SIGNATURES
+
+Return the counts as an OrderedDict.
+"""
+get_counts(oc::OrderedCounter) = oc.dict
+
+# first pass processing
 
 """
     $SIGNATURES
@@ -308,8 +335,8 @@ Create a column specification for first pass reading.
 `name` is the name of the column, parsed using `parser`.
 
 When `index_type::Type{<:Integer}` is given, it is used as a result type to
-generate a `RaggedCounter` with the given result type, except for the first
-parsed column.
+generate a `AutoIndex` with the given result type, except for the first parsed
+column, which uses an `OrderedCounter`.
 
 See [`make_first_pass`](@ref).
 """
@@ -325,10 +352,10 @@ When successful, it is transformed with `multisubs`, changing the state of
 
 The result is written into `sink`.
 """
-struct FirstPass{L <: Line, R <: RaggedCounter, A <: Tuple,
+struct FirstPass{L <: Line, C, A <: Tuple,
                  M <: MultiSubs, S <: SinkColumns}
     lineparser::L
-    raggedcounter::R
+    orderedcounter::C
     accumulators::A
     multisubs::M
     sink::S
@@ -371,7 +398,7 @@ function make_firstpass(dir, colspecs::AbstractVector{ColSpec};
         if !(index_type ≡ Void)
             @argcheck index_type <: Integer
             if colindex == 1
-                filter = RaggedCounter(result_type, index_type)
+                filter = OrderedCounter(result_type, index_type)
             else
                 filter = AutoIndex(result_type, index_type)
             end
