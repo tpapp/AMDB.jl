@@ -13,8 +13,11 @@ using DataStructures: OrderedDict
 using DocStringExtensions: SIGNATURES
 using DiscreteRanges: DiscreteRange
 using EnglishText: ItemQuantity
+using FileIO: load
 using FlexDates: FlexDate
-using LargeColumns: SinkColumns, meta_path
+using IndirectArrays: IndirectArray
+import JLD2
+using LargeColumns: SinkColumns, meta_path, MmappedColumns, get_columns
 using Lazy: @forward
 using Parameters: @unpack
 using WallTimeProgress: WallTimeTracker, increment!
