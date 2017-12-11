@@ -11,11 +11,12 @@ using Base.Mmap: mmap, sync!
 
 # load first pass
 first_pass = MmappedColumns(data_path("first_pass"));
+columns_first = get_columns(first_pass)
 N = length(first_pass)
 
 # load metadata
 meta = load(meta_path(first_pass, "meta.jld2"))
-counts = AMDB.get_counts(meta["id_counter"])
+counts = ordered_counts(columns_first[1], Int32)
 
 # permute to make IDs contiguous
 tmp = MmappedColumns(mktempdir(), N, Tuple{Int32}); # permutations are mmapped
@@ -24,7 +25,6 @@ contiguous_invperm!(ip, get_columns(first_pass)[1], counts)
 
 collated = MmappedColumns(data_path("collated"), N, eltype(first_pass));
 
-columns_first = get_columns(first_pass)
 columns_collated = get_columns(collated)
 
 """
@@ -64,7 +64,6 @@ ix = contiguous_ranges(counts);
 # check_contiguous(get_columns(collated)[1], ix)
 
 meta2 = copy(meta)
-delete!(meta2, "id_counter")
 meta2[AMDB.META_IX] = ix
 
 # save metadata, now it can be reused as is for the third pass and the data analysis

@@ -17,7 +17,7 @@ using LargeColumns: meta_path
 
 colspecs = [
     # 1, person id
-    ColSpec("PENR", PosInteger(Int32); index_type = Int32),
+    ColSpec("PENR", PosInteger(Int32)),
     # 2:3, spell start, Date
     ColSpec("STARTEND", AMDB.DatePair()),
     # 4, firm id, Int64 for some reason?
@@ -66,7 +66,7 @@ end
 
 # save the keys
 save(meta_path(dir, "meta.jld2"),
-     "id_counter", fp.orderedcounter,
+     # "id_counter", fp.orderedcounter,
      AMDB.META_INDEXED_KEYS, map(collect_keys, fp.accumulators),
-     AMDB.META_INDEXED_POSITIONS, collect(get_positions(fp.multisubs))[2:end],
+     AMDB.META_INDEXED_POSITIONS, collect(get_positions(fp.multisubs)),
      AMDB.META_COLUMN_NAMES, fp.colnames)

@@ -2,6 +2,7 @@ __precompile__()
 module AMDB
 
 import Base: close, count, keys, length, show, keys, values
+import Base.Markdown
 
 using ArgCheck: @argcheck
 using ByteParsers:
@@ -9,7 +10,7 @@ using ByteParsers:
     DateYYYYMMDD, MaybeParsed, getpos
 import ByteParsers: parsenext
 using CodecZlib: GzipDecompressorStream
-using DataStructures: OrderedDict
+using DataStructures: OrderedDict, counter, Accumulator
 using DocStringExtensions: SIGNATURES
 using DiscreteRanges: DiscreteRange
 using EnglishText: ItemQuantity
@@ -355,12 +356,12 @@ When successful, it is transformed with `multisubs`, changing the state of
 
 The result is written into `sink`.
 """
-struct FirstPass{L <: Line, C, A <: Tuple,
-                 M <: MultiSubs, S <: SinkColumns}
+struct FirstPass{L <: Line, A <: Tuple, M <: MultiSubs, R <: Set,
+                 S <: SinkColumns}
     lineparser::L
-    orderedcounter::C
     accumulators::A
     multisubs::M
+    recordset::R
     sink::S
     colnames::Vector{Symbol}
 end
@@ -400,11 +401,7 @@ function make_firstpass(dir, colspecs::AbstractVector{ColSpec};
         result_type = parsedtype(parser)
         if !(index_type ≡ Void)
             @argcheck index_type <: Integer
-            if colindex == 1
-                filter = OrderedCounter{result_type, index_type}()
-            else
-                filter = AutoIndex(result_type, index_type)
-            end
+            filter = AutoIndex(result_type, index_type)
             result_type = index_type
             push!(sub_positions, position)
             push!(sub_functions, filter)
@@ -412,11 +409,12 @@ function make_firstpass(dir, colspecs::AbstractVector{ColSpec};
         push!(result_types, result_type)
         push!(names, Symbol(name))
     end
+    recordtype = Tuple{result_types...}
     FirstPass(Line(parsers...),
-              sub_functions[1],
-              tuple(sub_functions[2:end]...),
+              tuple(sub_functions...),
               MultiSubs(tuple(sub_positions...), tuple(sub_functions...)),
-              SinkColumns(dir, Tuple{result_types...}),
+              Set{recordtype}(),
+              SinkColumns(dir, recordtype),
               names)
 end
 
@@ -440,14 +438,18 @@ function firstpass_process_stream(io::IO, fp::FirstPass, errors::FileErrors;
                                   tracker = WallTimeTracker(10_000_000;
                                                             item_name = "line"),
                                   max_lines = -1)
-    @unpack lineparser, multisubs, sink = fp
+    @unpack lineparser, multisubs, recordset, sink = fp
     while !eof(io) && (max_lines < 0 || count(tracker) < max_lines)
         line_content = readuntil(io, 0x0a)
-        record = parsenext(lineparser, line_content, 1, UInt8(';'))
-        if isparsed(record)
-            push!(sink, multisubs(unsafe_get(record)))
+        maybe_record = parsenext(lineparser, line_content, 1, UInt8(';'))
+        if isparsed(maybe_record)
+            record = multisubs(unsafe_get(maybe_record))
+            if record ∉ recordset
+                push!(recordset, record)
+                push!(sink, record)
+            end
         else
-            log_error(errors, count(tracker), line_content, getpos(record))
+            log_error(errors, count(tracker), line_content, getpos(maybe_record))
         end
         increment!(tracker)
     end
@@ -623,5 +625,77 @@ function collated_dataset(dir = "collated")
     end
     dict
 end
+
+
+# counting and data analysis
+
+"""
+    $SIGNATURES
+
+Count the values in `x` by spell duration (in vector `start_end`). Return a
+`DataStructures.Accumulator` object.
+"""
+function count_total_length(start_end, x::AbstractVector{T}) where T
+    c = counter(T)
+    for (se, elt) in zip(start_end, x)
+        push!(c, elt, length(se))
+    end
+    c
+end
+
+"""
+Representation for proportions. For easier printing. Proportions are of the form
+`key => value`, where `value` sums to `1`. Proportions are ordered by decreasing
+value.
+"""
+struct Proportions{T, S <: AbstractFloat}
+    proportions::Vector{Pair{T, S}}
+end
+
+"""
+    $SIGNATURES
+
+Calculate proportions from an accumulator.
+"""
+function Proportions(acc::Accumulator)
+    kv = collect(acc.map)
+    sort!(kv, by = last, rev = true)
+    total = sum(last, kv)
+    Proportions([k => v/total for (k, v) in kv])
+end
+
+"""
+    $SIGNATURES
+
+Aggregate the tail (lowest proportions) to `label`, keeping the first (largest)
+`keep`.
+"""
+function aggregate_tail(p::Proportions{T}, keep::Integer, label::T) where T
+    @unpack proportions = p
+    kept = proportions[1:keep]
+    tail = label => sum(last, proportions[(keep+1):end])
+    Proportions(vcat(kept, [tail]))
+end
+
+function to_markdown(p::Proportions)
+    table_body = [[string(k), string(signif(v * 100, 3)) * "%"]
+                  for (k,v) in p.proportions]
+    t = Markdown.Table(vcat([["category", "frequency"]], table_body), [:l, :r])
+    Markdown.MD(t)
+end
+
+dump_latex(filename, object) =
+    open(io -> show(io, MIME"text/latex"(), to_markdown(object)), filename, "w")
+
+"Nice labels for columns. Extend as necessary."
+const nicelabels = Dict(:PENR => "person id",
+                        :STARTEND => "spell",
+                        :BENR => "firm/agency",
+                        :AM => "labor mkt status",
+                        :SUM_MA => "total employees",
+                        :NACE => "industry",
+                        :RGS => "location",
+                        :AVG_BMG => "wage",
+                        )
 
 end # module
