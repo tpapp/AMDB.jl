@@ -684,18 +684,32 @@ function to_markdown(p::Proportions)
     Markdown.MD(t)
 end
 
-dump_latex(filename, object) =
-    open(io -> show(io, MIME"text/latex"(), to_markdown(object)), filename, "w")
+dump_latex(filename, object::Base.Markdown.MD) =
+    open(io -> show(io, MIME"text/latex"(), object), filename, "w")
+
+dump_latex(filename, object) = dump_latex(filename, to_markdown(object))
 
 "Nice labels for columns. Extend as necessary."
 const nicelabels = Dict(:PENR => "person id",
                         :STARTEND => "spell",
                         :BENR => "firm/agency",
-                        :AM => "labor mkt status",
-                        :SUM_MA => "total employees",
+                        :AM => "labor stat",
+                        :SUM_MA => "# empl",
                         :NACE => "industry",
                         :RGS => "location",
                         :AVG_BMG => "wage",
                         )
+
+"""
+    $SIGNATURES
+
+Lookup index (in `data[:ix]`) for personal id `penr`.
+"""
+function PENR_to_index(data, penr)
+    _penr = data[:PENR]
+    index = findfirst(r -> _penr[r[1]] == penr, data[:ix])
+    @argcheck index > 0 "PENR $penr not found in data."
+    index
+end
 
 end # module
