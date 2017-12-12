@@ -690,15 +690,16 @@ dump_latex(filename, object::Base.Markdown.MD) =
 dump_latex(filename, object) = dump_latex(filename, to_markdown(object))
 
 "Nice labels for columns. Extend as necessary."
-const nicelabels = Dict(:PENR => "person id",
-                        :STARTEND => "spell",
-                        :BENR => "firm/agency",
-                        :AM => "labor stat",
-                        :SUM_MA => "# empl",
-                        :NACE => "industry",
-                        :RGS => "location",
-                        :AVG_BMG => "wage",
-                        )
+#const
+nicelabels = Dict(:PENR => "person id",
+                  :STARTEND => "spell",
+                  :BENR => "firm/agency",
+                  :AM => "cat",
+                  :SUM_MA => "#E",
+                  :NACE => "ind",
+                  :RGS => "loc",
+                  :AVG_BMG => "wage",
+                  )
 
 """
     $SIGNATURES
@@ -711,5 +712,34 @@ function PENR_to_index(data, penr)
     @argcheck index > 0 "PENR $penr not found in data."
     index
 end
+
+"""
+    $SIGNATURES
+
+Format as a string for tabular (Markdown) display.
+"""
+_fmt(x) = string(x)
+
+_fmt(x::DiscreteRange{<: FlexDate}) =
+    string(convert(Date, x.left)) * "…" * string(convert(Date, x.right))
+
+"""
+    $SIGNATURES
+
+Individual history for `penr`; return the relevant columns as a Markdown table.
+"""
+function individual_history(data, penr, column_names...)
+    index = AMDB.PENR_to_index(data, penr)
+    r = data[:ix][index]
+    column_names = [column_names...]
+    rows = [getindex.(AMDB.nicelabels, column_names)]
+    cols = getindex.(data, column_names)
+    for i in r
+        push!(rows, @. _fmt(getindex(cols, i)))
+    end
+    Markdown.MD(Markdown.Paragraph(["individual #$(penr)"]),
+                Markdown.Table(rows, fill(:r, length(cols))))
+end
+
 
 end # module
