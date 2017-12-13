@@ -613,16 +613,14 @@ function collated_dataset(dir = "collated")
     collated = MmappedColumns(data_path(dir))
     meta = load(meta_path(collated, "meta.jld2"))
     dict = Dict{Symbol, AbstractVector{<: Any}}()
-    dict[:ix] = meta[META_IX]
-    columns = collect(get_columns(collated))
+    columns = collect(Any, get_columns(collated))
     for (indexed_position, indexed_keys) in zip(meta[META_INDEXED_POSITIONS],
                                                 meta[META_INDEXED_KEYS])
         columns[indexed_position] = IndirectArray(columns[indexed_position],
                                                   indexed_keys)
     end
-    for (colname, column) in zip(meta[META_COLUMN_NAMES], columns)
-        dict[colname] = column
-    end
+    dict = Dict{Symbol, Any}(zip(meta[META_COLUMN_NAMES], columns))
+    dict[:ix] = meta[META_IX]
     dict
 end
 
