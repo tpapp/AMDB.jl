@@ -14,7 +14,7 @@ collated = MmappedColumns(data_path("collated"));
 
 meta = load(meta_path(collated, "meta.jld2"))
 
-const date_col_index = findfirst(meta[AMDB.META_COLUMN_NAMES], :STARTEND)
+const date_col_index = findfirst(meta[AMDB.META_COLUMN_NAMES], :STICHTAG)
 
 @assert date_col_index > 0
 
@@ -26,7 +26,7 @@ date in `date_col_index`.
 """
 function order_date_start!(ix, collated)
     @showprogress for r in ix
-        collated[r] .= sort(collated[r], by = x -> x[date_col_index].left)
+        collated[r] .= sort(collated[r], by = x -> x[date_col_index])
     end
 end
 

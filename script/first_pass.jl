@@ -13,7 +13,7 @@ using JLD2
 using FileIO
 using LargeColumns: meta_path
 
-# AMDB.preview_column("AVG_BMG")
+# AMDB.preview_column("ALTER"; N = 10)
 
 colspecs = [
     # 1, person id
@@ -22,8 +22,14 @@ colspecs = [
     ColSpec("STARTEND", AMDB.DatePair()),
     # 4, firm id, Int64 for some reason?
     ColSpec("BENR", FixEmpty(-1, PosInteger(Int64)); index_type = Int32), # missing as -1
+    # 5, STICHTAG
+    ColSpec("STICHTAG", AMDB.ParseDate()),
     # 6, labor market status
     ColSpec("AM", ViewBytes(), index_type = Int8),
+    # 11, gender
+    ColSpec("GESCHLECHT", ViewBytes(), index_type = Int8),
+    # 12, alter
+    ColSpec("ALTER", PosInteger(Int8)),
     # 17, number of employees,  seems to be capped at 1000?
     ColSpec("SUM_MA", FixEmpty(-1, PosInteger(Int16))), # missing as -1
     # 19, industry code, 4 digits, has strings like XXXX?
@@ -40,7 +46,8 @@ fp = make_firstpass(dir, colspecs)
 
 # quick check
 @assert fp.colnames ==
-    [:PENR, :STARTEND, :BENR, :AM, :SUM_MA, :NACE, :RGS, :AVG_BMG]
+    [:PENR, :STARTEND, :BENR, :STICHTAG, :AM, :GESCHLECHT, :ALTER, :SUM_MA,
+     :NACE, :RGS, :AVG_BMG]
 
 error_io = open(data_path("first_pass_errors.txt"), "w")
 println(error_io,

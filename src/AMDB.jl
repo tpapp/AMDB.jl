@@ -322,7 +322,19 @@ function parsenext(::DatePair, str::ByteVector, pos, sep)
     @checkpos (pos, date2) = parsenext(D, str, pos, sep)
     return MaybeParsed(pos, DiscreteRange(AMDB_Date(date1), AMDB_Date(date2)))
     @label error
-    MaybeParsed{Date}(pos_to_error(pos))
+    MaybeParsed{DiscreteRange{AMDB_Date}}(pos_to_error(pos))
+end
+
+"""
+Parse a date and compress to internal date format.
+"""
+struct ParseDate <: AbstractParser{AMDB_Date} end
+
+function parsenext(::ParseDate, str::ByteVector, pos, sep)
+    @checkpos (pos, raw_date) = parsenext(DateYYYYMMDD(), str, pos, sep)
+    return MaybeParsed(pos, AMDB_Date(raw_date))
+    @label error
+    MaybeParsed{AMDB_Date}(pos_to_error(pos))
 end
 
 struct ColSpec
@@ -356,12 +368,10 @@ When successful, it is transformed with `multisubs`, changing the state of
 
 The result is written into `sink`.
 """
-struct FirstPass{L <: Line, A <: Tuple, M <: MultiSubs, R <: Set,
-                 S <: SinkColumns}
+struct FirstPass{L <: Line, A <: Tuple, M <: MultiSubs, S <: SinkColumns}
     lineparser::L
     accumulators::A
     multisubs::M
-    recordset::R
     sink::S
     colnames::Vector{Symbol}
 end
@@ -413,7 +423,6 @@ function make_firstpass(dir, colspecs::AbstractVector{ColSpec};
     FirstPass(Line(parsers...),
               tuple(sub_functions...),
               MultiSubs(tuple(sub_positions...), tuple(sub_functions...)),
-              Set{recordtype}(),
               SinkColumns(dir, recordtype),
               names)
 end
@@ -438,16 +447,13 @@ function firstpass_process_stream(io::IO, fp::FirstPass, errors::FileErrors;
                                   tracker = WallTimeTracker(10_000_000;
                                                             item_name = "line"),
                                   max_lines = -1)
-    @unpack lineparser, multisubs, recordset, sink = fp
+    @unpack lineparser, multisubs, sink = fp
     while !eof(io) && (max_lines < 0 || count(tracker) < max_lines)
         line_content = readuntil(io, 0x0a)
         maybe_record = parsenext(lineparser, line_content, 1, UInt8(';'))
         if isparsed(maybe_record)
             record = multisubs(unsafe_get(maybe_record))
-            if record ∉ recordset
-                push!(recordset, record)
-                push!(sink, record)
-            end
+            push!(sink, record)
         else
             log_error(errors, count(tracker), line_content, getpos(maybe_record))
         end
