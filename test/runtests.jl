@@ -2,6 +2,7 @@ using Base.Test
 
 using ByteParsers: Skip, parsenext, parsedtype, MaybeParsed
 using DiscreteRanges: DiscreteRange
+using IndirectArrays
 
 using AMDB:
     # errors
@@ -92,4 +93,11 @@ end
     @test oc(1) == 1
     @test collect(keys(oc)) == Int32[1, 2, 3]
     @test collect(values(oc)) == Int[2, 2, 1]
+end
+
+@testset "interning keys" begin
+    values = ["foo", "bar", "baz"]
+    A = IndirectArray(1:3, values)
+    keys = AMDB.intern_keys(A, values)
+    all(keys .≡ values)
 end

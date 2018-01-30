@@ -614,6 +614,8 @@ Read the collated dataset as a dictinary of `:colname => column` pairs.
 
 All columns are of the same length, except for `:ix`, which contains ranges that
 select contiguous records for an individual in the *other* columns.
+
+This is the recommended entry point for **using** collated data.
 """
 function collated_dataset(dir = "collated")
     collated = MmappedColumns(data_path(dir))
@@ -628,6 +630,19 @@ function collated_dataset(dir = "collated")
     dict = Dict{Symbol, Any}(zip(meta[META_COLUMN_NAMES], columns))
     dict[:ix] = meta[META_IX]
     dict
+end
+
+"""
+    $SIGNATURES
+
+Look up `keys` in the `values` of the `IndirectArray`, and return a vector of
+them. Using these keys allows for faster lookup, eg using `≡` for strings.
+"""
+function intern_keys(A::IndirectArray, keys)
+    @unpack values = A
+    ixs = [findfirst(values, key) for key in keys]
+    @argcheck all(ixs .> 0) "Keys $(keys[ixs .== 0]) not found in this array."
+    values[ixs]
 end
 
 
