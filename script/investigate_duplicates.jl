@@ -8,7 +8,7 @@ using ProgressMeter
 # data part
 
 # read the data
-data = AMDB.collated_dataset("collated");
+data = AMDB.collated_dataset("collated"); # load the data
 
 function count_duplicates(data, individual_index)
     stichtag = individual_columns(data, individual_index, [:STICHTAG])[1]
