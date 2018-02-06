@@ -10,6 +10,7 @@ using ByteParsers:
     DateYYYYMMDD, MaybeParsed, getpos
 import ByteParsers: parsenext
 using CodecZlib: GzipDecompressorStream
+using DataFrames
 using DataStructures: OrderedDict, counter, Accumulator
 using DocStringExtensions: SIGNATURES
 using DiscreteRanges: DiscreteRange
@@ -22,11 +23,14 @@ using LargeColumns: SinkColumns, meta_path, MmappedColumns, get_columns
 using Lazy: @forward
 using Parameters: @unpack
 using WallTimeProgress: WallTimeTracker, increment!
+using ProgressMeter
 
 export
     data_file, data_path, all_data_files, data_colnames,
     serialize_data, deserialize_data,
-    AMDB_Date
+    AMDB_Date,
+    normalize_rows, count_individual_transitions, trim_counter,
+    get_mis, individual_columns, individual_df, get_age_gender
 
 
 # paths
@@ -608,6 +612,25 @@ columns `(Vector{Symbol}`).
 const META_COLUMN_NAMES = "column_names"
 
 """
+    CollatedData
+
+A wrapper for the collated dataset.
+
+`ix` contains the indices in the flat vectors for each individual.
+
+`colnames` is a mapping from the column names to their index.
+
+`cols` contains the columns.
+
+FIXME replace with named tuples for faster lookup when v0.7 is released.
+"""
+struct CollatedData{IX, COLS}
+    ix::IX
+    colnames::OrderedDict{Symbol, Int}
+    columns::COLS
+end
+
+"""
     $SIGNATURES
 
 Read the collated dataset as a dictinary of `:colname => column` pairs.
@@ -627,10 +650,17 @@ function collated_dataset(dir = "collated")
         columns[indexed_position] = IndirectArray(columns[indexed_position],
                                                   indexed_keys)
     end
-    dict = Dict{Symbol, Any}(zip(meta[META_COLUMN_NAMES], columns))
-    dict[:ix] = meta[META_IX]
-    dict
+    CollatedData(meta[META_IX],
+                 OrderedDict(reverse.(collect((enumerate(meta[META_COLUMN_NAMES]))))),
+                 columns)
 end
+
+"""
+    $SIGNATURES
+
+Column names of data.
+"""
+get_colnames(data::CollatedData) = collect(keys(data.colnames))
 
 """
     $SIGNATURES
@@ -760,5 +790,120 @@ function individual_history(data, penr, column_names...)
                 Markdown.Table(rows, fill(:r, length(cols))))
 end
 
+
+# working with data
+
+"""
+    $SIGNATURES
+
+Convert STICHTAG to "month in sample", with January 2000 as `1`.
+"""
+function get_mis(stichtag::Date)
+    y, m = Dates.yearmonth(stichtag)
+    Int16((y - 2000) * 12 + m)
+end
+
+get_mis(stichtag::FlexDate) = get_mis(convert(Date, stichtag))
+
+"""
+    $SIGNATURES
+
+Return individual observations for the given columns.
+
+Resolves `individual_index` in `data[:ix]`, return a vector views. See also
+[`individual_df`](@ref) to get dataframes.
+"""
+function individual_columns(data::CollatedData, individual_index, column_names)
+    @unpack ix, colnames, columns = data
+    ix_individual = ix[individual_index]
+    map(key -> view(columns[colnames[key]], ix_individual), column_names)
+end
+
+"""
+    $SIGNATURES
+
+Individual observations as a data frame. When `colnames` is not specified,
+return all columns.
+"""
+function individual_df(data::CollatedData, individual_index,
+                       colnames = get_colnames(data))
+    DataFrame(individual_columns(data, individual_index, colnames), colnames)
+end
+
+
+function get_age_gender(data, individual_index, ref_mis = 0)
+    gender, age, stichtag = individual_observations(data, individual_index,
+                                                    (:GESCHLECHT, :ALTER,
+                                                     :STICHTAG))
+    first_mis = get_mis(first(stichtag))
+    age_ref = first(age) - round(Int, (first_mis - ref_mis)/12)
+    age_ref, first(gender)
+end
+
+"""
+    $SIGNATURES
+
+Return the index of the first set which contains `value`, otherwise `0`.
+"""
+classify(value, sets) = findfirst(set -> value ∈ set, sets)
+
+"""
+    $SIGNATURES
+
+Look up the individual with the given index in `data`, [`classify`](@ref) the
+spells according to sets, then increment `counter[t, index_from, index_to]`,
+where `t` is the time of the month in sample.
+
+Contiguity of data is ensured by checking month in sample.
+"""
+function add_individual_transitions!(counter, data, individual_index, sets)
+    am, st = individual_observations(data, individual_index, (:AM, :STICHTAG))
+    mis = get_mis.(st)
+    clas = map(am -> classify(am, sets), am)
+    for i in 2:length(mis)
+        t = mis[i-1]
+        source = clas[i-1]
+        dest = clas[i]
+        if ((mis[i-1] == t) && (source ≠ 0) && (dest ≠ 0))
+            counter[t, source, dest] += 1
+        end
+    end
+end
+
+"""
+    $SIGNATURES
+
+Remove the trailing zeros of `counter`, plus `extra` slices (last transitions
+tend to be noisy).
+"""
+function trim_counter(counter, extra = 0)
+    sums = squeeze(sum(counter, (2, 3)), (2, 3))
+    counter[1:(findlast(!iszero, sums) - extra), :, :]
+end
+
+"""
+    $SIGNATURES
+
+Accumulate the individual transitions classified in to `sets` in a counter
+matrix, see [`add_individual_transitions!`](@ref).
+
+Initially, `max_mis` is used to determine the length of the counter,
+overallocating is not very costly, it is trimmed in the end.
+"""
+function count_individual_transitions(data, individual_indexes, sets;
+                                      max_mis = 300)
+    counter = zeros(Int, 300, 3, 3)
+    @showprogress for i in individual_indexes
+        add_individual_transitions!(counter, data, i, sets)
+    end
+    counter = trim_counter(counter)
+end
+
+"""
+    $SIGNATURES
+
+Return the argument with its rows normalized to `1` (probabilities).
+"""
+normalize_rows(A::AbstractMatrix) = A ./ squeeze(sum(A, 2), 2)
 
 end # module

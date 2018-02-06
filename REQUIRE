@@ -13,3 +13,4 @@ LargeColumns
 RaggedData
 FlexDates
 WallTimeProgress
+ProgressMeter
