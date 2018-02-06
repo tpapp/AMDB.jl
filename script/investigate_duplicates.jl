@@ -38,8 +38,13 @@ function duplicate_observations(data, individual_index)
     df[dup, :]
 end
 
+# looking at one individual
 count_duplicates(data, 400)
-
 dd = duplicate_observations(data, 400)
 
-showall(dd)
+showall(individual_df(data, 400))
+
+dup = individuals_with_duplicates(data)
+
+count(d -> last(d) > 10, dup) / length(data.ix)
+count(d -> last(d) > 20, dup) / length(data.ix)
